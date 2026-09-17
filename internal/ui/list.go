@@ -95,14 +95,14 @@ func (m *mainUI) Content() fyne.CanvasObject {
 
 	m.filterRow = container.NewHBox(
 		m.refreshBtn,
-		m.searchEntry,
-		m.clearBtn,
 		m.countrySel,
 		m.sortSel,
 		m.ascBtn,
 		m.favCheck,
 		m.selCheck,
 		widget.NewButtonWithIcon("Settings", theme.SettingsIcon(), func() { m.openSettings() }),
+		m.searchEntry,
+		m.clearBtn,
 	)
 
 	// Status bar
