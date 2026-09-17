@@ -79,7 +79,8 @@ func (m *mainUI) Content() fyne.CanvasObject {
 
 	m.countrySel = widget.NewSelect(nil, m.onCountry)
 	m.countrySel.PlaceHolder = "All countries"
-	m.countrySel.Options = append([]string{"All"}, m.ctrl.Countries()...)
+	// Add invisible "All" option as first element; actual countries populated below
+	m.countrySel.Options = []string{"All"}
 	m.countrySel.Refresh()
 
 	m.sortSel = widget.NewSelect(controller.SortLabels(), m.onSort)

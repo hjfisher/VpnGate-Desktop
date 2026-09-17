@@ -84,16 +84,11 @@ func makeBadge(code string) fyne.CanvasObject {
 }
 
 func makeCenter(sv data.VpnServer, selection bool) fyne.CanvasObject {
-	country := widget.NewLabel(sv.CountryLong)
-	country.TextStyle = fyne.TextStyle{Bold: true}
-	country.Truncation = fyne.TextTruncateEllipsis
-	host := widget.NewLabel(sv.HostName)
-	host.Truncation = fyne.TextTruncateEllipsis
-	ip := widget.NewLabel(sv.IP)
+	country := widget.NewLabelWithStyle(sv.CountryLong, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	host := widget.NewLabelWithStyle(sv.HostName, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	ip := widget.NewLabelWithStyle(sv.IP, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	ip.Importance = widget.MediumImportance
-	ip.Truncation = fyne.TextTruncateEllipsis
 	if selection {
-		// Keep rows compact during selection.
 		ip.Hide()
 	}
 	return container.NewVBox(country, host, ip)
