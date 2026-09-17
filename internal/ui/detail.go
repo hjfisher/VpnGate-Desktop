@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -27,8 +28,13 @@ type detailWindow struct {
 
 // showDetail opens (or reuses) the detail window for a server.
 func (m *mainUI) showDetail(server data.VpnServer) {
+	m.detailHost = server.HostName
 	if m.detail == nil {
 		m.detail = m.ctrl.App().NewWindow("Server")
+		m.detail.SetOnClosed(func() {
+			m.detail = nil
+			m.detailHost = ""
+		})
 	}
 	OpenDetail(m.ctrl, m.detail, server)
 }
@@ -138,7 +144,20 @@ func valueLabel(text string) *widget.Label {
 func (d *detailWindow) checkPing() {
 	d.pingBtn.Disable()
 	d.pingBtn.SetText("Checking…")
+	done := make(chan struct{})
+	// Safety net: re-enable the button even if the ping callback never fires.
+	go func() {
+		select {
+		case <-done:
+		case <-time.After(6 * time.Second):
+			fyne.Do(func() {
+				d.pingBtn.Enable()
+				d.pingBtn.SetText("Check connection")
+			})
+		}
+	}()
 	d.ctrl.Ping(d.server.HostName, func(ms int64) {
+		close(done)
 		d.measured = ms
 		d.measuredSet = true
 		d.pingBtn.Enable()

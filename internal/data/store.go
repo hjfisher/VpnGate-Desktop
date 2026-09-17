@@ -22,7 +22,11 @@ func NewStore(configDir string) *Store {
 func (st *Store) Load() []VpnServer {
 	st.mu.Lock()
 	defer st.mu.Unlock()
+	return st.loadLocked()
+}
 
+// loadLocked reads and deduplicates the stored list. The caller must hold st.mu.
+func (st *Store) loadLocked() []VpnServer {
 	data, err := os.ReadFile(st.path)
 	if err != nil {
 		return nil
@@ -51,7 +55,7 @@ func (st *Store) Merge(fresh []VpnServer) ([]VpnServer, bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 
-	merged := st.Load()
+	merged := st.loadLocked()
 	byIP := make(map[string]int, len(merged))
 	for i, s := range merged {
 		byIP[s.IP] = i
@@ -84,7 +88,7 @@ func (st *Store) Delete(ips map[string]struct{}) []VpnServer {
 	defer st.mu.Unlock()
 
 	var remaining []VpnServer
-	for _, s := range st.Load() {
+	for _, s := range st.loadLocked() {
 		if _, ok := ips[s.IP]; !ok {
 			remaining = append(remaining, s)
 		}

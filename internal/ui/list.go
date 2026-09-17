@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -11,8 +12,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"vpngate/internal/controller"
 )
-
-var sortNames = []string{"Score", "Ping", "Speed", "Sessions"}
 
 // mainUI wires the main window: filter toolbar, selection toolbar,
 // status bar and the (scrollable) server list.
@@ -29,6 +28,8 @@ type mainUI struct {
 
 	refreshBtn  *widget.Button
 	searchEntry *widget.Entry
+	clearBtn    *widget.Button
+	searchTimer *time.Timer
 	countrySel  *widget.Select
 	sortSel     *widget.Select
 	ascBtn      *widget.Button
@@ -42,8 +43,9 @@ type mainUI struct {
 	infoLabel    *widget.Label
 	progress     *widget.ProgressBarInfinite
 
-	detail   fyne.Window
-	settings *settingsWindow
+	detail     fyne.Window
+	detailHost string
+	settings   *settingsWindow
 }
 
 func NewMain(win fyne.Window, ctrl *controller.Controller) *mainUI {
@@ -57,12 +59,16 @@ func (m *mainUI) Content() fyne.CanvasObject {
 	m.refreshBtn = widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), m.ctrl.Refresh)
 	m.searchEntry = widget.NewEntry()
 	m.searchEntry.SetPlaceHolder("Search host / IP / country")
-	m.searchEntry.OnChanged = m.ctrl.SetSearch
+	m.searchEntry.OnChanged = m.onSearchChanged
+	m.clearBtn = widget.NewButtonWithIcon("", theme.CancelIcon(), m.clearSearch)
+	m.clearBtn.Hide()
 
 	m.countrySel = widget.NewSelect(nil, m.onCountry)
 	m.countrySel.PlaceHolder = "All countries"
+	m.countrySel.Options = m.ctrl.Countries()
+	m.countrySel.Refresh()
 
-	m.sortSel = widget.NewSelect([]string{"Score", "Ping", "Speed", "Sessions"}, m.onSort)
+	m.sortSel = widget.NewSelect(controller.SortLabels(), m.onSort)
 	m.sortSel.PlaceHolder = "Score"
 
 	m.ascBtn = widget.NewButton("▲", m.ctrl.ToggleAscending)
@@ -90,6 +96,7 @@ func (m *mainUI) Content() fyne.CanvasObject {
 	m.filterRow = container.NewHBox(
 		m.refreshBtn,
 		m.searchEntry,
+		m.clearBtn,
 		m.countrySel,
 		m.sortSel,
 		m.ascBtn,
@@ -133,8 +140,27 @@ func (m *mainUI) buildEmpty() *fyne.Container {
 func (m *mainUI) Refresh() {
 	m.countrySel.Options = m.ctrl.Countries()
 	m.countrySel.Refresh()
-	m.sortSel.Options = sortNames
+	if country := m.ctrl.CountryFilter(); country != "" {
+		m.countrySel.SetSelected(country)
+	}
+	m.sortSel.Options = controller.SortLabels()
+	m.sortSel.SetSelected(controller.SortLabel(m.ctrl.Sort()))
 	m.sortSel.Refresh()
+
+	if m.ctrl.Ascending() {
+		m.ascBtn.SetText("▲")
+	} else {
+		m.ascBtn.SetText("▼")
+	}
+
+	// Close the detail window if the server it shows no longer exists.
+	if m.detail != nil && m.detailHost != "" {
+		if _, ok := m.ctrl.FindServer(m.detailHost); !ok {
+			m.detail.Close()
+			m.detail = nil
+			m.detailHost = ""
+		}
+	}
 
 	servers := m.ctrl.Servers()
 	m.listBox.Objects = m.listBox.Objects[:0]
@@ -186,17 +212,35 @@ func (m *mainUI) Refresh() {
 
 // checkRowVisible shows/hides a toolbar row and forces a relayout.
 func (m *mainUI) onCountry(country string) { m.ctrl.SetCountry(country) }
-func (m *mainUI) onSort(value string) {
-	switch value {
-	case "Ping":
-		m.ctrl.SetSort(controller.SortPing)
-	case "Speed":
-		m.ctrl.SetSort(controller.SortSpeed)
-	case "Sessions":
-		m.ctrl.SetSort(controller.SortSessions)
-	default:
-		m.ctrl.SetSort(controller.SortScore)
+func (m *mainUI) onSort(value string)      { m.ctrl.SetSort(controller.SortFromLabel(value)) }
+
+// onSearchChanged debounces search input so the filtered list only rebuilds
+// after the user pauses typing, avoiding per-keystroke work over 1000+ rows.
+func (m *mainUI) onSearchChanged(_ string) {
+	if text := m.searchEntry.Text; text != "" {
+		m.clearBtn.Show()
+	} else {
+		m.clearBtn.Hide()
 	}
+	if m.searchTimer != nil {
+		m.searchTimer.Stop()
+	}
+	m.searchTimer = time.AfterFunc(250*time.Millisecond, func() {
+		fyne.Do(func() {
+			m.ctrl.SetSearch(m.searchEntry.Text)
+		})
+	})
+}
+
+// clearSearch resets both the search entry text and the controller filter.
+func (m *mainUI) clearSearch() {
+	m.searchEntry.SetText("")
+	m.clearBtn.Hide()
+	if m.searchTimer != nil {
+		m.searchTimer.Stop()
+		m.searchTimer = nil
+	}
+	m.ctrl.SetSearch("")
 }
 func (m *mainUI) onFav(on bool)            { c := m.ctrl; c.SetFavoritesOnly(on) }
 func (m *mainUI) onSelectMode(on bool)     { m.ctrl.SetSelectionMode(on) }

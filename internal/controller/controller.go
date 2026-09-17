@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -30,6 +31,7 @@ type Controller struct {
 	store         *data.Store
 	settingsStore *data.SettingsStore
 	settings      data.AppSettings
+	sMu           sync.RWMutex // guards settings across background goroutines
 
 	servers    []data.VpnServer
 	countries  []string
@@ -94,13 +96,20 @@ func (c *Controller) update() {
 // --- App / data getters ---
 
 func (c *Controller) App() fyne.App                  { return c.app }
-func (c *Controller) Settings() data.AppSettings     { return c.settings }
+func (c *Controller) Settings() data.AppSettings {
+	c.sMu.RLock()
+	defer c.sMu.RUnlock()
+	return c.settings
+}
 func (c *Controller) LastUpdateTime() time.Time      { return c.lastUpdate }
 func (c *Controller) IsRefreshing() bool             { return c.refreshing }
 func (c *Controller) IsOffline() bool                { return c.offline }
 func (c *Controller) SelectionMode() bool            { return c.selectionMode }
 func (c *Controller) SelectedCount() int             { return len(c.selected) }
 func (c *Controller) Countries() []string            { return c.countries }
+func (c *Controller) CountryFilter() string          { return c.countryFilter }
+func (c *Controller) Sort() SortBy                   { return c.sort }
+func (c *Controller) Ascending() bool                { return c.ascending }
 func (c *Controller) IsFavorite(host string) bool    { return c.favorites[host] }
 func (c *Controller) PingResult(host string) (int64, bool) {
 	v, ok := c.pingResults[host]
@@ -133,7 +142,10 @@ func (c *Controller) Refresh() {
 	}
 	c.refreshing = true
 	c.update()
-	api := data.NewVpnGateApi(c.settings.UseMirror)
+	c.sMu.RLock()
+	useMirror := c.settings.UseMirror
+	c.sMu.RUnlock()
+	api := data.NewVpnGateApi(useMirror)
 	go func() {
 		defer fyne.Do(func() {
 			c.refreshing = false
@@ -149,56 +161,72 @@ func (c *Controller) Refresh() {
 			})
 			return
 		}
-// Parse incrementally and update UI every 100 servers or 100ms
-		batch := make([]data.VpnServer, 0, 100)
-		parser := data.VpnGateParser{}
+		c.mergeParsed(csv)
+	}()
+}
+
+// mergeParsed parses CSV in a single producer goroutine and merges batches
+// into the store as they arrive, so the UI streams in updates instead of
+// waiting for the whole file. Each batch merge happens on the Refresh
+// goroutine, so server state is updated sequentially without data races.
+func (c *Controller) mergeParsed(csv string) {
+	batches := make(chan []data.VpnServer, 8)
+	var parseErr error
+	var errMu sync.Mutex
+	go func() {
+		defer close(batches)
+		batch := make([]data.VpnServer, 0, 64)
+		flush := func() {
+			if len(batch) == 0 {
+				return
+			}
+			b := make([]data.VpnServer, len(batch))
+			copy(b, batch)
+			batches <- b
+			batch = batch[:0]
+		}
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
-
-		done := make(chan struct{})
+		parseDone := make(chan struct{})
 		go func() {
-			for {
-				select {
-				case <-ticker.C:
-					if len(batch) > 0 {
-						fyne.Do(func() {
-							merged, _ := c.store.Merge(batch)
-							c.servers = merged
-							c.rebuildCountries()
-							c.update()
-						})
-						batch = batch[:0]
-					}
-				case <-done:
-					return
-				}
-			}
+			defer close(parseDone)
+			parser := data.VpnGateParser{}
+			err := parser.ParseStream(csv, func(s data.VpnServer) bool {
+				batch = append(batch, s)
+				return true
+			})
+			errMu.Lock()
+			parseErr = err
+			errMu.Unlock()
 		}()
-
-		err = parser.ParseStream(csv, func(s data.VpnServer) bool {
-			batch = append(batch, s)
-			return true
-		})
-		close(done)
-		ticker.Stop()
-
-		// Flush remaining
-		if len(batch) > 0 {
-			fyne.Do(func() {
-				merged, _ := c.store.Merge(batch)
-				c.servers = merged
-				c.lastUpdate = time.Now()
-				c.offline = false
-				c.rebuildCountries()
-				c.update()
-			})
-		}
-		if err != nil {
-			fyne.Do(func() {
-				c.notifyError(err)
-			})
+		for {
+			select {
+			case <-ticker.C:
+				flush()
+			case <-parseDone:
+				flush()
+				return
+			}
 		}
 	}()
+	for batch := range batches {
+		merged, _ := c.store.Merge(batch)
+		fyne.Do(func() {
+			c.servers = merged
+			c.rebuildCountries()
+			c.lastUpdate = time.Now()
+			c.offline = false
+			c.update()
+		})
+	}
+	errMu.Lock()
+	err := parseErr
+	errMu.Unlock()
+	if err != nil {
+		fyne.Do(func() {
+			c.notifyError(err)
+		})
+	}
 }
 
 func (c *Controller) ClearCache() {
@@ -226,15 +254,19 @@ func (c *Controller) SetCountry(country string) {
 }
 
 func (c *Controller) SetSort(sortBy SortBy) {
+	c.sMu.Lock()
 	c.sort = sortBy
 	c.settings.SortBy = sortString(sortBy)
+	c.sMu.Unlock()
 	c.saveSettings()
 	c.update()
 }
 
 func (c *Controller) ToggleAscending() {
+	c.sMu.Lock()
 	c.ascending = !c.ascending
 	c.settings.SortAscending = c.ascending
+	c.sMu.Unlock()
 	c.saveSettings()
 	c.update()
 }
@@ -298,13 +330,18 @@ func (c *Controller) DeleteSelected() {
 	for host := range c.selected {
 		if s, ok := c.FindServer(host); ok {
 			ips[s.IP] = struct{}{}
+			delete(c.selected, host)
 		}
 	}
 	if len(ips) > 0 {
 		c.servers = c.store.Delete(ips)
 		c.rebuildCountries()
 	}
-	c.selected = map[string]bool{}
+	for host := range c.selected {
+		if _, ok := c.FindServer(host); !ok {
+			delete(c.selected, host)
+		}
+	}
 	c.selectionMode = false
 	c.update()
 }
@@ -315,10 +352,9 @@ func (c *Controller) DeleteServer(host string) {
 		ips[s.IP] = struct{}{}
 		c.servers = c.store.Delete(ips)
 		delete(c.favorites, host)
+		delete(c.selected, host)
 		c.rebuildCountries()
 	}
-	c.selected = map[string]bool{}
-	c.selectionMode = false
 	c.update()
 }
 
@@ -393,7 +429,9 @@ func (c *Controller) export(servers []data.VpnServer) net.ExportOutcome {
 func (c *Controller) ExportFolder() string { return c.settings.ExportFolder }
 
 func (c *Controller) SetExportFolder(folder string) {
+	c.sMu.Lock()
 	c.settings.ExportFolder = folder
+	c.sMu.Unlock()
 	c.saveSettings()
 	c.update()
 }
@@ -438,10 +476,12 @@ func (c *Controller) VisibleCount() int { return len(c.visible()) }
 // --- Settings ---
 
 func (c *Controller) UpdateSettings(s data.AppSettings) {
+	c.sMu.Lock()
 	c.settings = s
 	c.favorites = stringSet(s.Favorites)
 	c.sort = sortFromString(s.SortBy)
 	c.ascending = s.SortAscending
+	c.sMu.Unlock()
 	c.saveSettings()
 	c.restartAutoRefresh(s.AutoRefreshMinutes)
 	c.update()
@@ -460,13 +500,17 @@ func (c *Controller) ApplyTheme() {
 }
 
 func (c *Controller) saveSettings() {
+	c.sMu.Lock()
 	c.settings.Favorites = sortedKeys(c.favorites)
 	_ = c.settingsStore.Save(c.settings)
+	c.sMu.Unlock()
 }
 
 func (c *Controller) persistFavorites() {
+	c.sMu.Lock()
 	c.settings.Favorites = sortedKeys(c.favorites)
 	_ = c.settingsStore.Save(c.settings)
+	c.sMu.Unlock()
 }
 
 func (c *Controller) restartAutoRefresh(minutes int) {
@@ -605,6 +649,39 @@ func sortFromString(s string) SortBy {
 	case "speed":
 		return SortSpeed
 	case "sessions":
+		return SortSessions
+	default:
+		return SortScore
+	}
+}
+
+// SortLabels returns the display labels for the sort dropdown, in UI order.
+func SortLabels() []string {
+	return []string{"Score", "Ping", "Speed", "Sessions"}
+}
+
+// SortLabel maps a sort mode to its display label.
+func SortLabel(by SortBy) string {
+	switch by {
+	case SortPing:
+		return "Ping"
+	case SortSpeed:
+		return "Speed"
+	case SortSessions:
+		return "Sessions"
+	default:
+		return "Score"
+	}
+}
+
+// SortFromLabel maps a display label to its sort mode.
+func SortFromLabel(label string) SortBy {
+	switch label {
+	case "Ping":
+		return SortPing
+	case "Speed":
+		return SortSpeed
+	case "Sessions":
 		return SortSessions
 	default:
 		return SortScore
