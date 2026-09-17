@@ -53,6 +53,20 @@ func NewMain(win fyne.Window, ctrl *controller.Controller) *mainUI {
 	return m
 }
 
+// SetCountryFilterShown shows/hides the server list based on whether a country filter is active.
+func (m *mainUI) SetCountryFilterShown(shown bool) {
+	if shown {
+		m.offlineLabel.Hide()
+		m.infoLabel.Hide()
+		m.progress.Hide()
+	} else {
+		m.offlineLabel.Show()
+		m.infoLabel.Show()
+		m.progress.Show()
+	}
+	m.statusRow.Refresh()
+}
+
 // Content builds the window body. A container returned once; updates mutate
 // the shared widgets.
 func (m *mainUI) Content() fyne.CanvasObject {
@@ -65,7 +79,7 @@ func (m *mainUI) Content() fyne.CanvasObject {
 
 	m.countrySel = widget.NewSelect(nil, m.onCountry)
 	m.countrySel.PlaceHolder = "All countries"
-	m.countrySel.Options = m.ctrl.Countries()
+	m.countrySel.Options = append([]string{"All"}, m.ctrl.Countries()...)
 	m.countrySel.Refresh()
 
 	m.sortSel = widget.NewSelect(controller.SortLabels(), m.onSort)
@@ -138,7 +152,7 @@ func (m *mainUI) buildEmpty() *fyne.Container {
 
 // Refresh rebuilds the visible list and toolbar state. Runs on the main thread.
 func (m *mainUI) Refresh() {
-	m.countrySel.Options = m.ctrl.Countries()
+	m.countrySel.Options = append([]string{"All"}, m.ctrl.Countries()...)
 	m.countrySel.Refresh()
 	if country := m.ctrl.CountryFilter(); country != "" {
 		m.countrySel.SetSelected(country)
@@ -211,7 +225,7 @@ func (m *mainUI) Refresh() {
 }
 
 // checkRowVisible shows/hides a toolbar row and forces a relayout.
-func (m *mainUI) onCountry(country string) { m.ctrl.SetCountry(country) }
+func (m *mainUI) onCountry(country string) { m.ctrl.SetCountry(country); m.SetCountryFilterShown(country != "All") }
 func (m *mainUI) onSort(value string)      { m.ctrl.SetSort(controller.SortFromLabel(value)) }
 
 // onSearchChanged debounces search input so the filtered list only rebuilds

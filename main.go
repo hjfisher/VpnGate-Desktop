@@ -19,7 +19,8 @@ func main() {
 	a.SetIcon(ui.AppIcon())
 
 	w := a.NewWindow("VPN Gate — Desktop")
-	w.Resize(fyne.NewSize(1080, 720))
+	w.Resize(fyne.NewSize(800, 600))
+	w.CenterOnScreen()
 
 	ctrl := controller.New(a, configDir())
 	ctrl.ApplyTheme()
@@ -27,6 +28,9 @@ func main() {
 	mainUI := ui.NewMain(w, ctrl)
 	w.SetContent(mainUI.Content())
 	ctrl.SetOnUpdate(mainUI.Refresh)
+
+	// Initially hide the server list until country is set
+	mainUI.SetCountryFilterShown(false)
 
 	// Kick off an initial network refresh a moment after the window opens
 	go func() {
