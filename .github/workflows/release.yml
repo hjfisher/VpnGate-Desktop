@@ -26,8 +26,8 @@ jobs:
       - name: Verify MinGW
         run: x86_64-w64-mingw32-gcc --version
       - run: go mod download
-      - name: Build (no console window)
-        run: go build -v -trimpath -ldflags="-H windowsgui -s -w" -o vpngate-desktop.exe .
+      - name: Build
+        run: go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe .
       - name: Package
         shell: powershell
         run: Compress-Archive -Path vpngate-desktop.exe -DestinationPath vpngate-desktop-windows-amd64.zip -Force
