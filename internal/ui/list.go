@@ -176,12 +176,23 @@ func (m *mainUI) Refresh() {
 		}
 	}
 
+	// Show only servers matching the country filter (or "All")
 	servers := m.ctrl.Servers()
-	m.listBox.Objects = m.listBox.Objects[:0]
-	if len(servers) == 0 {
+	filtered := servers
+	if m.ctrl.CountryFilter() != "All" {
+		filtered = nil
+		for _, sv := range servers {
+			if sv.CountryLong == m.ctrl.CountryFilter() {
+				filtered = append(filtered, sv)
+			}
+		}
+	}
+
+	m.listBox.Objects = nil
+	if len(filtered) == 0 {
 		m.listBox.Objects = append(m.listBox.Objects, m.emptyContent)
 	} else {
-		for _, sv := range servers {
+		for _, sv := range filtered {
 			if sv.IsBlank() {
 				continue
 			}
