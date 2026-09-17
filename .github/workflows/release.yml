@@ -17,6 +17,7 @@ jobs:
       CGO_ENABLED: 1
       GOARCH: amd64
       CC: x86_64-w64-mingw32-gcc
+      CGO_LDFLAGS: -lopengl32 -lgdi32 -luser32
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -56,6 +57,7 @@ jobs:
       GOARCH: 386
       GOOS: windows
       CC: i686-w64-mingw32-gcc
+      CGO_LDFLAGS: -lopengl32 -lgdi32 -luser32
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -87,6 +89,7 @@ jobs:
       CGO_ENABLED: 1
       GOARCH: amd64
       CC: clang
+      CGO_LDFLAGS: -framework OpenGL -framework Cocoa -framework IOKit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -112,6 +115,7 @@ jobs:
       CGO_ENABLED: 1
       GOARCH: arm64
       CC: clang
+      CGO_LDFLAGS: -framework OpenGL -framework Cocoa -framework IOKit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -137,6 +141,7 @@ jobs:
       CGO_ENABLED: 1
       GOARCH: amd64
       CC: gcc
+      CGO_LDFLAGS: -lGL -lX11 -lXrandr -lXinerama -lXcursor -lXi -lXxf86vm -lwayland-client -lxkbcommon
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
