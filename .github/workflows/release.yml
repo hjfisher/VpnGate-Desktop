@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Windows amd64
+          # Windows amd64 (native)
           - os: windows-latest
             arch: amd64
             artifact_name: vpngate-desktop-windows-amd64
@@ -27,7 +27,7 @@ jobs:
             ext: zip
             packager: powershell
 
-          # Windows 386 (x86)
+          # Windows 386 (x86) - cross-compile
           - os: windows-latest
             arch: 386
             artifact_name: vpngate-desktop-windows-386
@@ -37,7 +37,7 @@ jobs:
             ext: zip
             packager: powershell
 
-          # Windows arm64
+          # Windows arm64 - cross-compile
           - os: windows-latest
             arch: arm64
             artifact_name: vpngate-desktop-windows-arm64
@@ -47,7 +47,7 @@ jobs:
             ext: zip
             packager: powershell
 
-          # macOS Intel
+          # macOS Intel (native)
           - os: macos-latest
             arch: amd64
             artifact_name: vpngate-desktop-darwin-amd64
@@ -57,7 +57,7 @@ jobs:
             ext: tar.gz
             packager: tar
 
-          # macOS Apple Silicon
+          # macOS Apple Silicon (native)
           - os: macos-latest
             arch: arm64
             artifact_name: vpngate-desktop-darwin-arm64
@@ -67,20 +67,10 @@ jobs:
             ext: tar.gz
             packager: tar
 
-          # Linux amd64
+          # Linux amd64 (native)
           - os: ubuntu-latest
             arch: amd64
             artifact_name: vpngate-desktop-linux-amd64
-            binary_name: vpngate-desktop
-            cc: gcc
-            cgo: 1
-            ext: tar.gz
-            packager: tar
-
-          # Linux arm64 - using native arm64 runner
-          - os: ubuntu-24.04-arm
-            arch: arm64
-            artifact_name: vpngate-desktop-linux-arm64
             binary_name: vpngate-desktop
             cc: gcc
             cgo: 1
@@ -102,9 +92,9 @@ jobs:
           go-version: '1.23'
           cache: true
 
-      # Linux amd64 dependencies
-      - name: Install CGO dependencies (Linux amd64)
-        if: runner.os == 'Linux' && matrix.arch == 'amd64'
+      # Linux amd64 - install complete CGO dependencies
+      - name: Install CGO dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -117,31 +107,34 @@ jobs:
             libxcursor-dev \
             libxi-dev \
             libxxf86vm-dev \
-            pkg-config
+            pkg-config \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libegl1-mesa-dev
 
-      # Linux arm64 dependencies (native runner)
-      - name: Install CGO dependencies (Linux arm64)
-        if: runner.os == 'Linux' && matrix.arch == 'arm64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            gcc \
-            libgl1-mesa-dev \
-            libglfw3-dev \
-            libx11-dev \
-            libxrandr-dev \
-            libxinerama-dev \
-            libxcursor-dev \
-            libxi-dev \
-            libxxf86vm-dev \
-            pkg-config
-
-      # Windows - verify MinGW is available
+      # Windows - verify MinGW cross-compilers are available
       - name: Verify MinGW (Windows)
         if: runner.os == 'Windows'
         run: |
           echo "Checking MinGW for ${{ matrix.arch }}..."
-          ${{ matrix.cc }} --version
+          ${{ matrix.cc }} --version 2>&1 || (echo "Compiler not found" && exit 1)
+
+      # Windows 386/arm64 - try to install missing cross-compilers via chocolatey
+      - name: Install Windows cross-compilers if missing
+        if: runner.os == 'Windows' && (matrix.arch == '386' || matrix.arch == 'arm64')
+        shell: powershell
+        run: |
+          $compiler = "${{ matrix.cc }}.exe"
+          if (-not (Get-Command $compiler -ErrorAction SilentlyContinue)) {
+            Write-Host "Installing MinGW cross-compilers via chocolatey..."
+            choco install mingw -y --no-progress 2>$null || Write-Host "Chocolatey install failed, trying scoop..."
+            scoop install mingw 2>$null || Write-Host "Scoop install failed"
+          }
+          if (Get-Command $compiler -ErrorAction SilentlyContinue) {
+            $compiler --version
+          } else {
+            Write-Host "Warning: Compiler ${{ matrix.cc }} not available, build may fail"
+          }
 
       - name: Download Go modules
         run: go mod download
@@ -173,7 +166,7 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') && needs.build.result == 'success'
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
