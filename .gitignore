@@ -14,7 +14,7 @@ release-assets/
 # Fyne
 fyne-cross/
 *.syso
-!rsrc_windows.syso
+!rsrc_windows_*.syso
 
 # IDE
 .vscode/
