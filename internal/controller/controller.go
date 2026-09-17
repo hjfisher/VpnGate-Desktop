@@ -149,22 +149,39 @@ func (c *Controller) Refresh() {
 			})
 			return
 		}
-// Parse incrementally and update UI every 50 servers
-	batch := make([]data.VpnServer, 0, 50)
-	parser := data.VpnGateParser{}
-	err = parser.ParseStream(csv, func(s data.VpnServer) bool {
-			batch = append(batch, s)
-			if len(batch) >= 50 {
-				fyne.Do(func() {
-					merged, _ := c.store.Merge(batch)
-					c.servers = merged
-					c.rebuildCountries()
-					c.update()
-				})
-				batch = batch[:0]
+// Parse incrementally and update UI every 100 servers or 100ms
+		batch := make([]data.VpnServer, 0, 100)
+		parser := data.VpnGateParser{}
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		done := make(chan struct{})
+		go func() {
+			for {
+				select {
+				case <-ticker.C:
+					if len(batch) > 0 {
+						fyne.Do(func() {
+							merged, _ := c.store.Merge(batch)
+							c.servers = merged
+							c.rebuildCountries()
+							c.update()
+						})
+						batch = batch[:0]
+					}
+				case <-done:
+					return
+				}
 			}
+		}()
+
+		err = parser.ParseStream(csv, func(s data.VpnServer) bool {
+			batch = append(batch, s)
 			return true
 		})
+		close(done)
+		ticker.Stop()
+
 		// Flush remaining
 		if len(batch) > 0 {
 			fyne.Do(func() {

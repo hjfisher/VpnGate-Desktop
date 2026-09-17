@@ -15,13 +15,14 @@ import (
 // settingsWindow edits theme, sort default, auto-refresh, mirror and the
 // export folder. Everything is persisted immediately through the controller.
 type settingsWindow struct {
-	ctrl *controller.Controller
-	win  fyne.Window
+	ctrl     *controller.Controller
+	parentWin fyne.Window
+	win      fyne.Window
 }
 
 // NewSettings creates a settings launcher bound to the app.
-func NewSettings(ctrl *controller.Controller) *settingsWindow {
-	return &settingsWindow{ctrl: ctrl}
+func NewSettings(ctrl *controller.Controller, parent fyne.Window) *settingsWindow {
+	return &settingsWindow{ctrl: ctrl, parentWin: parent}
 }
 
 // Open shows the settings window (single instance per main window).
@@ -36,6 +37,14 @@ func (sw *settingsWindow) Open() {
 	sw.win.Resize(fyne.NewSize(540, 500))
 	sw.win.CenterOnScreen()
 	sw.win.Show()
+}
+
+// parent returns the window to use for dialogs (settings window if open, else parent)
+func (sw *settingsWindow) parent() fyne.Window {
+	if sw.win != nil {
+		return sw.win
+	}
+	return sw.parentWin
 }
 
 func (sw *settingsWindow) Content() fyne.CanvasObject {
@@ -111,7 +120,7 @@ func (sw *settingsWindow) Content() fyne.CanvasObject {
 			}
 			sw.ctrl.SetExportFolder(uri.Path())
 			folderLabel.SetText(uri.Path())
-		}, sw.win)
+		}, sw.parent())
 		dlg.Show()
 	})
 	resetBtn := widget.NewButton("Use default", func() {
@@ -128,7 +137,7 @@ func (sw *settingsWindow) Content() fyne.CanvasObject {
 					sw.ctrl.ClearCache()
 				}
 			},
-			sw.win,
+			sw.parent(),
 		)
 	})
 	clearBtn.Importance = widget.DangerImportance

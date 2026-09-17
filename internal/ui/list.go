@@ -218,7 +218,7 @@ func (m *mainUI) onDeleteConfirm(count int) {
 // openSettings shows the settings window once and keeps it alive.
 func (m *mainUI) openSettings() {
 	if m.settings == nil {
-		m.settings = NewSettings(m.ctrl)
+		m.settings = NewSettings(m.ctrl, m.win)
 	}
 	m.settings.Open()
 }
