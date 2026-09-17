@@ -12,7 +12,12 @@ import (
 )
 
 func main() {
+	// Create app with icon
 	a := app.NewWithID("net.hjfisher.vpngate")
+
+	// Set generated app icon
+	a.SetIcon(ui.AppIcon())
+
 	w := a.NewWindow("VPN Gate — Desktop")
 	w.Resize(fyne.NewSize(1080, 720))
 
@@ -23,8 +28,7 @@ func main() {
 	w.SetContent(mainUI.Content())
 	ctrl.SetOnUpdate(mainUI.Refresh)
 
-	// Kick off an initial network refresh a moment after the window opens so
-	// previously cached servers render instantly.
+	// Kick off an initial network refresh a moment after the window opens
 	go func() {
 		time.Sleep(250 * time.Millisecond)
 		fyne.Do(ctrl.Refresh)

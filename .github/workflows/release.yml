@@ -26,7 +26,8 @@ jobs:
       - name: Verify MinGW
         run: x86_64-w64-mingw32-gcc --version
       - run: go mod download
-      - run: go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe .
+      - name: Build (no console window)
+        run: go build -v -trimpath -ldflags="-H windowsgui -s -w" -o vpngate-desktop.exe .
       - name: Package
         shell: powershell
         run: Compress-Archive -Path vpngate-desktop.exe -DestinationPath vpngate-desktop-windows-amd64.zip -Force
@@ -56,7 +57,8 @@ jobs:
           sudo apt-get install -y gcc-mingw-w64-i686
       - run: i686-w64-mingw32-gcc --version
       - run: go mod download
-      - run: go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe .
+      - name: Build (no console window)
+        run: go build -v -trimpath -ldflags="-H windowsgui -s -w" -o vpngate-desktop.exe .
       - name: Package
         run: zip vpngate-desktop-windows-386.zip vpngate-desktop.exe
       - uses: actions/upload-artifact@v4

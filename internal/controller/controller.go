@@ -142,7 +142,6 @@ func (c *Controller) Refresh() {
 		csv, err := api.FetchRawCSV()
 		if err != nil {
 			fyne.Do(func() {
-				// Stay offline only when we have nothing else to show.
 				if len(c.servers) == 0 {
 					c.offline = true
 				}
@@ -150,18 +149,38 @@ func (c *Controller) Refresh() {
 			})
 			return
 		}
-		fresh := data.VpnGateParser{}.Parse(csv)
-		fyne.Do(func() {
-			if len(fresh) == 0 {
-				c.offline = true
-				return
+// Parse incrementally and update UI every 50 servers
+	batch := make([]data.VpnServer, 0, 50)
+	parser := data.VpnGateParser{}
+	err = parser.ParseStream(csv, func(s data.VpnServer) bool {
+			batch = append(batch, s)
+			if len(batch) >= 50 {
+				fyne.Do(func() {
+					merged, _ := c.store.Merge(batch)
+					c.servers = merged
+					c.rebuildCountries()
+					c.update()
+				})
+				batch = batch[:0]
 			}
-			merged, _ := c.store.Merge(fresh)
-			c.servers = merged
-			c.lastUpdate = time.Now()
-			c.offline = false
-			c.rebuildCountries()
+			return true
 		})
+		// Flush remaining
+		if len(batch) > 0 {
+			fyne.Do(func() {
+				merged, _ := c.store.Merge(batch)
+				c.servers = merged
+				c.lastUpdate = time.Now()
+				c.offline = false
+				c.rebuildCountries()
+				c.update()
+			})
+		}
+		if err != nil {
+			fyne.Do(func() {
+				c.notifyError(err)
+			})
+		}
 	}()
 }
 

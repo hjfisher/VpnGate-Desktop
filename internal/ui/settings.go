@@ -28,6 +28,9 @@ func NewSettings(ctrl *controller.Controller) *settingsWindow {
 func (sw *settingsWindow) Open() {
 	if sw.win == nil {
 		sw.win = sw.ctrl.App().NewWindow("Settings")
+		sw.win.SetOnClosed(func() {
+			sw.win = nil
+		})
 	}
 	sw.win.SetContent(sw.Content())
 	sw.win.Resize(fyne.NewSize(540, 500))
@@ -39,16 +42,16 @@ func (sw *settingsWindow) Content() fyne.CanvasObject {
 	s := sw.ctrl.Settings()
 
 	themeSel := widget.NewSelect([]string{"System", "Light", "Dark"}, func(v string) {
-		s := sw.ctrl.Settings()
+		settings := sw.ctrl.Settings()
 		switch v {
 		case "Light":
-			s.Theme = "light"
+			settings.Theme = "light"
 		case "Dark":
-			s.Theme = "dark"
+			settings.Theme = "dark"
 		default:
-			s.Theme = "system"
+			settings.Theme = "system"
 		}
-		sw.ctrl.UpdateSettings(s)
+		sw.ctrl.UpdateSettings(settings)
 		sw.ctrl.ApplyTheme()
 	})
 	themeSel.SetSelected(themeLabel(s.Theme))
@@ -98,7 +101,7 @@ func (sw *settingsWindow) Content() fyne.CanvasObject {
 	folderLabel := widget.NewLabel(folder)
 	folderLabel.Wrapping = fyne.TextWrapWord
 
-	chooseBtn := widget.NewButton("Choose on computer", func() {
+	chooseBtn := widget.NewButton("Choose folder", func() {
 		dlg := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
 			if err != nil || uri == nil || uri.Path() == "" {
 				return

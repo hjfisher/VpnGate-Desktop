@@ -19,10 +19,23 @@ import (
 // (with a limit of 15 columns) is safe — base64 is always the last column.
 type VpnGateParser struct{}
 
+// Parse parses the entire CSV and returns all servers at once (legacy).
 func (VpnGateParser) Parse(body string) []VpnServer {
 	var servers []VpnServer
+	p := VpnGateParser{}
+	_ = p.ParseStream(body, func(s VpnServer) bool {
+		servers = append(servers, s)
+		return true
+	})
+	return servers
+}
+
+// ParseStream parses the CSV incrementally, calling fn for each server.
+// If fn returns false, parsing stops early.
+func (VpnGateParser) ParseStream(body string, fn func(VpnServer) bool) error {
 	scanner := bufio.NewScanner(strings.NewReader(body))
 	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
+	seen := make(map[string]struct{})
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -52,19 +65,15 @@ func (VpnGateParser) Parse(body string) []VpnServer {
 			OpenVPNConfigB64: base64cfg,
 			ProtoType:        detectProto(base64cfg),
 		}
-		servers = append(servers, s)
-	}
-	// Deduplicate by IP, keeping the first occurrence.
-	seen := make(map[string]struct{}, len(servers))
-	out := servers[:0]
-	for _, s := range servers {
 		if _, ok := seen[s.IP]; ok {
 			continue
 		}
 		seen[s.IP] = struct{}{}
-		out = append(out, s)
+		if !fn(s) {
+			break
+		}
 	}
-	return out
+	return scanner.Err()
 }
 
 // detectProto inspects the decoded config to find "udp"/"tcp".
