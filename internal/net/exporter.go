@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"vpngate/internal/data"
 )
@@ -51,10 +52,10 @@ func DefaultExportFolder() string {
 		}
 		return filepath.Join(dir, "VPNGate")
 	}
-	switch {
-	case isWindows():
+	switch runtime.GOOS {
+	case "windows":
 		return filepath.Join(home, "Downloads", "VPNGate")
-	case isMac():
+	case "darwin":
 		return filepath.Join(home, "Downloads", "VPNGate")
 	default:
 		// Linux usually has ~/Downloads; fall back gracefully.
@@ -66,16 +67,4 @@ func DefaultExportFolder() string {
 	}
 }
 
-func isWindows() bool {
-	return os.PathSeparator == '\\' && os.PathListSeparator == ';'
-}
-
-func isMac() bool {
-	// Darwin detection without importing runtime specifics at call sites.
-	return fileExists("/System/Library/CoreServices/SystemVersion.plist")
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
+// Removed isWindows, isMac, fileExists - use runtime.GOOS instead
