@@ -470,18 +470,24 @@ func (c *Controller) persistFavorites() {
 }
 
 func (c *Controller) restartAutoRefresh(minutes int) {
-	// Stop any previous ticker goroutine by closing its channel.
+	// Save reference to old stop channel
+	oldStop := c.stopTick
+
+	// Create new channel FIRST (before closing old one)
+	c.stopTick = make(chan struct{})
+
+	// Signal old goroutine to stop (non-blocking send)
 	select {
-	case <-c.stopTick:
-		// already stopped / closed
+	case oldStop <- struct{}{}:
 	default:
-		close(c.stopTick)
+		// Channel may not be receiving, that's OK
 	}
+
 	if minutes <= 0 {
 		return
 	}
-	stop := make(chan struct{})
-	c.stopTick = stop
+
+	stop := c.stopTick
 	go func() {
 		tick := time.NewTicker(time.Duration(minutes) * time.Minute)
 		defer tick.Stop()
