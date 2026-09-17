@@ -27,7 +27,9 @@ jobs:
         run: x86_64-w64-mingw32-gcc --version
       - run: go mod download
       - name: Build
-        run: go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe .
+        run: |
+          echo "Building Windows amd64 with CGO_ENABLED=$CGO_ENABLED CC=$CC"
+          go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe . 2>&1
       - name: Package
         shell: powershell
         run: Compress-Archive -Path vpngate-desktop.exe -DestinationPath vpngate-desktop-windows-amd64.zip -Force
@@ -58,7 +60,9 @@ jobs:
       - run: i686-w64-mingw32-gcc --version
       - run: go mod download
       - name: Build
-        run: go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe .
+        run: |
+          echo "Building Windows 386 with CGO_ENABLED=$CGO_ENABLED CC=$CC GOOS=$GOOS GOARCH=$GOARCH"
+          go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe . 2>&1
       - name: Package
         run: zip vpngate-desktop-windows-386.zip vpngate-desktop.exe
       - uses: actions/upload-artifact@v4
@@ -81,7 +85,10 @@ jobs:
           go-version: '1.23'
           cache: true
       - run: go mod download
-      - run: go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop .
+      - name: Build
+        run: |
+          echo "Building macOS amd64 with CGO_ENABLED=$CGO_ENABLED CC=$CC"
+          go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop . 2>&1
       - run: tar -czf vpngate-desktop-darwin-amd64.tar.gz vpngate-desktop
       - uses: actions/upload-artifact@v4
         with:
@@ -103,7 +110,10 @@ jobs:
           go-version: '1.23'
           cache: true
       - run: go mod download
-      - run: go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop .
+      - name: Build
+        run: |
+          echo "Building macOS arm64 with CGO_ENABLED=$CGO_ENABLED CC=$CC"
+          go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop . 2>&1
       - run: tar -czf vpngate-desktop-darwin-arm64.tar.gz vpngate-desktop
       - uses: actions/upload-artifact@v4
         with:
@@ -132,7 +142,10 @@ jobs:
             libxinerama-dev libxcursor-dev libxi-dev libxxf86vm-dev \
             pkg-config libwayland-dev libxkbcommon-dev libegl1-mesa-dev
       - run: go mod download
-      - run: go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop .
+      - name: Build
+        run: |
+          echo "Building Linux amd64 with CGO_ENABLED=$CGO_ENABLED CC=$CC"
+          go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop . 2>&1
       - run: tar -czf vpngate-desktop-linux-amd64.tar.gz vpngate-desktop
       - uses: actions/upload-artifact@v4
         with:
