@@ -35,6 +35,7 @@ jobs:
           ./test.exe
           echo "Simple build OK"
       - name: Build
+        shell: bash
         run: |
           echo "Building Windows amd64 with CGO_ENABLED=$CGO_ENABLED CC=$CC"
           echo "Go version: $(go version)"
