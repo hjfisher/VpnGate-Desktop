@@ -26,6 +26,13 @@ jobs:
       - name: Verify MinGW
         run: x86_64-w64-mingw32-gcc --version
       - run: go mod download
+      - name: Test simple build
+        run: |
+          echo "Testing simple Go build..."
+          echo 'package main; import "fmt"; func main() { fmt.Println("hello") }' > test.go
+          go build -o test.exe test.go
+          ./test.exe
+          echo "Simple build OK"
       - name: Build
         run: |
           echo "Building Windows amd64 with CGO_ENABLED=$CGO_ENABLED CC=$CC"
