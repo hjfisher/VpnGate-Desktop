@@ -25,10 +25,6 @@ jobs:
           cache: true
       - name: Verify MinGW
         run: x86_64-w64-mingw32-gcc --version
-      - name: Install MinGW packages for Fyne
-        run: |
-          choco install mingw -y --no-progress 2>$null || echo "Chocolatey not available"
-          # Ensure we have the required libraries
       - run: go mod download
       - name: Test simple build
         run: |
@@ -42,7 +38,7 @@ jobs:
           echo "Building Windows amd64 with CGO_ENABLED=$CGO_ENABLED CC=$CC"
           echo "Go version: $(go version)"
           echo "CC version: $("$CC" --version | head -1)"
-          CGO_LDFLAGS="-lopengl32 -lgdi32" go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe . 2>&1 || (echo "=== BUILD FAILED ===" && exit 1)
+          go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe . 2>&1 || (echo "=== BUILD FAILED ===" && exit 1)
       - name: Package
         shell: powershell
         run: Compress-Archive -Path vpngate-desktop.exe -DestinationPath vpngate-desktop-windows-amd64.zip -Force
@@ -75,7 +71,7 @@ jobs:
       - name: Build
         run: |
           echo "Building Windows 386 with CGO_ENABLED=$CGO_ENABLED CC=$CC GOOS=$GOOS GOARCH=$GOARCH"
-          CGO_LDFLAGS="-lopengl32 -lgdi32" go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe . 2>&1
+          go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe . 2>&1
       - name: Package
         run: zip vpngate-desktop-windows-386.zip vpngate-desktop.exe
       - uses: actions/upload-artifact@v4
@@ -101,7 +97,7 @@ jobs:
       - name: Build
         run: |
           echo "Building macOS amd64 with CGO_ENABLED=$CGO_ENABLED CC=$CC"
-          CGO_LDFLAGS="-framework OpenGL -framework Cocoa -framework IOKit" go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop . 2>&1
+          go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop . 2>&1
       - run: tar -czf vpngate-desktop-darwin-amd64.tar.gz vpngate-desktop
       - uses: actions/upload-artifact@v4
         with:
@@ -126,7 +122,7 @@ jobs:
       - name: Build
         run: |
           echo "Building macOS arm64 with CGO_ENABLED=$CGO_ENABLED CC=$CC"
-          CGO_LDFLAGS="-framework OpenGL -framework Cocoa -framework IOKit" go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop . 2>&1
+          go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop . 2>&1
       - run: tar -czf vpngate-desktop-darwin-arm64.tar.gz vpngate-desktop
       - uses: actions/upload-artifact@v4
         with:
@@ -158,7 +154,7 @@ jobs:
       - name: Build
         run: |
           echo "Building Linux amd64 with CGO_ENABLED=$CGO_ENABLED CC=$CC"
-          CGO_LDFLAGS="-lGL -lX11 -lXrandr -lXinerama -lXcursor -lXi -lXxf86vm -lwayland-client -lxkbcommon" go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop . 2>&1
+          go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop . 2>&1
       - run: tar -czf vpngate-desktop-linux-amd64.tar.gz vpngate-desktop
       - uses: actions/upload-artifact@v4
         with:
