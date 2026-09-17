@@ -1,0 +1,156 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows
+          - os: windows-latest
+            arch: amd64
+            artifact_name: vpngate-desktop-windows-amd64
+            binary_name: vpngate-desktop.exe
+            cc: x86_64-w64-mingw32-gcc
+            cgo: 1
+          # macOS Intel
+          - os: macos-latest
+            arch: amd64
+            artifact_name: vpngate-desktop-darwin-amd64
+            binary_name: vpngate-desktop
+            cc: clang
+            cgo: 1
+          # macOS Apple Silicon
+          - os: macos-latest
+            arch: arm64
+            artifact_name: vpngate-desktop-darwin-arm64
+            binary_name: vpngate-desktop
+            cc: clang
+            cgo: 1
+          # Linux amd64
+          - os: ubuntu-latest
+            arch: amd64
+            artifact_name: vpngate-desktop-linux-amd64
+            binary_name: vpngate-desktop
+            cc: gcc
+            cgo: 1
+          # Linux arm64 (cross-compile from amd64 runner)
+          - os: ubuntu-latest
+            arch: arm64
+            artifact_name: vpngate-desktop-linux-arm64
+            binary_name: vpngate-desktop
+            cc: aarch64-linux-gnu-gcc
+            cgo: 1
+
+    env:
+      CGO_ENABLED: ${{ matrix.cgo }}
+      GOARCH: ${{ matrix.arch }}
+      CC: ${{ matrix.cc }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Install CGO dependencies (Linux)
+        if: runner.os == 'Linux' && matrix.arch == 'amd64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgl1-mesa-dev libglfw3-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev pkg-config
+
+      - name: Install CGO dependencies (Linux arm64 cross-compile)
+        if: runner.os == 'Linux' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
+            libgl1-mesa-dev:arm64 libglfw3-dev:arm64 libx11-dev:arm64 \
+            libxrandr-dev:arm64 libxinerama-dev:arm64 libxcursor-dev:arm64 libxi-dev:arm64 \
+            pkg-config-aarch64-linux-gnu
+
+      - name: Install CGO dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # MinGW-w64 is pre-installed on windows-latest
+          # Verify it's available
+          x86_64-w64-mingw32-gcc --version
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Build
+        run: |
+          go build -v -trimpath -ldflags="-s -w" -o "${{ matrix.binary_name }}" .
+
+      - name: Package artifact
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "${{ matrix.artifact_name }}.zip" "${{ matrix.binary_name }}"
+          else
+            tar -czf "${{ matrix.artifact_name }}.tar.gz" "${{ matrix.binary_name }}"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.artifact_name }}.zip
+            ${{ matrix.artifact_name }}.tar.gz
+          retention-days: 7
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: vpngate-desktop-*
+          merge-multiple: false
+
+      - name: List artifacts
+        run: |
+          find artifacts -type f -name "*.zip" -o -name "*.tar.gz" | sort
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          cp artifacts/*/*.zip release-assets/ 2>/dev/null || true
+          cp artifacts/*/*.tar.gz release-assets/ 2>/dev/null || true
+          ls -la release-assets/
+
+      - name: Generate checksums
+        run: |
+          cd release-assets
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

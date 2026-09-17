@@ -1,0 +1,33 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+vpngate-desktop
+vpngate-desktop-*
+
+# Build output
+*.zip
+*.tar.gz
+release-assets/
+
+# Fyne
+fyne-cross/
+*.syso
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test
+*.test
+*.out
