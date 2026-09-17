@@ -76,7 +76,7 @@ func softPrimary() color.NRGBA {
 func makeBadge(code string) fyne.CanvasObject {
 	label := canvas.NewText(code, theme.PrimaryColorNamed("primary"))
 	label.TextStyle = fyne.TextStyle{Bold: true}
-	circle := canvas.NewCircle(color.NRGBA{R: 37, G: 99, B: 235, A: 255})  // Visible circle
+	circle := canvas.NewCircle(color.NRGBA{R: 255, G: 0, B: 0, A: 255})  // Red circle
 	circle.StrokeColor = theme.ShadowColor()
 	circle.StrokeWidth = 1
 	stack := container.NewStack(circle, label)
