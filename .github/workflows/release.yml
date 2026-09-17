@@ -38,7 +38,7 @@ jobs:
           echo "Building Windows amd64 with CGO_ENABLED=$CGO_ENABLED CC=$CC"
           echo "Go version: $(go version)"
           echo "CC version: $("$CC" --version | head -1)"
-          go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe . 2>&1 || (echo "=== BUILD FAILED ===" && exit 1)
+          go build -x -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe . 2>&1 || (echo "=== BUILD FAILED ===" && exit 1)
       - name: Package
         shell: powershell
         run: Compress-Archive -Path vpngate-desktop.exe -DestinationPath vpngate-desktop-windows-amd64.zip -Force
