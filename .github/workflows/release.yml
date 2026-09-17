@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: Build with fyne-cross
+    name: Build ${{ matrix.target }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -41,13 +41,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build with fyne-cross
-        uses: fyne-io/fyne-cross@v2
-        with:
-          target: ${{ matrix.target }}
-          version: v2.6.0
-          icon: ./assets/icon.png
-          release: true
+        run: |
+          docker run --rm -v "$(pwd):/app" -w /app \
+            ghcr.io/fyne-io/fyne-cross:latest \
+            fyne-cross ${{ matrix.target }} -icon=assets/icon.png -release
 
       - name: Prepare artifact
         run: |
