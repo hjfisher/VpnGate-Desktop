@@ -17,13 +17,36 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Windows
+          # Windows amd64
           - os: windows-latest
             arch: amd64
             artifact_name: vpngate-desktop-windows-amd64
             binary_name: vpngate-desktop.exe
             cc: x86_64-w64-mingw32-gcc
             cgo: 1
+            ext: zip
+            packager: powershell
+
+          # Windows 386 (x86)
+          - os: windows-latest
+            arch: 386
+            artifact_name: vpngate-desktop-windows-386
+            binary_name: vpngate-desktop.exe
+            cc: i686-w64-mingw32-gcc
+            cgo: 1
+            ext: zip
+            packager: powershell
+
+          # Windows arm64
+          - os: windows-latest
+            arch: arm64
+            artifact_name: vpngate-desktop-windows-arm64
+            binary_name: vpngate-desktop.exe
+            cc: aarch64-w64-mingw32-gcc
+            cgo: 1
+            ext: zip
+            packager: powershell
+
           # macOS Intel
           - os: macos-latest
             arch: amd64
@@ -31,6 +54,9 @@ jobs:
             binary_name: vpngate-desktop
             cc: clang
             cgo: 1
+            ext: tar.gz
+            packager: tar
+
           # macOS Apple Silicon
           - os: macos-latest
             arch: arm64
@@ -38,6 +64,9 @@ jobs:
             binary_name: vpngate-desktop
             cc: clang
             cgo: 1
+            ext: tar.gz
+            packager: tar
+
           # Linux amd64
           - os: ubuntu-latest
             arch: amd64
@@ -45,13 +74,18 @@ jobs:
             binary_name: vpngate-desktop
             cc: gcc
             cgo: 1
-          # Linux arm64 (cross-compile from amd64 runner)
-          - os: ubuntu-latest
+            ext: tar.gz
+            packager: tar
+
+          # Linux arm64 - using native arm64 runner
+          - os: ubuntu-24.04-arm
             arch: arm64
             artifact_name: vpngate-desktop-linux-arm64
             binary_name: vpngate-desktop
-            cc: aarch64-linux-gnu-gcc
+            cc: gcc
             cgo: 1
+            ext: tar.gz
+            packager: tar
 
     env:
       CGO_ENABLED: ${{ matrix.cgo }}
@@ -68,27 +102,46 @@ jobs:
           go-version: '1.23'
           cache: true
 
-      - name: Install CGO dependencies (Linux)
+      # Linux amd64 dependencies
+      - name: Install CGO dependencies (Linux amd64)
         if: runner.os == 'Linux' && matrix.arch == 'amd64'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libgl1-mesa-dev libglfw3-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev pkg-config
+          sudo apt-get install -y \
+            gcc \
+            libgl1-mesa-dev \
+            libglfw3-dev \
+            libx11-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxxf86vm-dev \
+            pkg-config
 
-      - name: Install CGO dependencies (Linux arm64 cross-compile)
+      # Linux arm64 dependencies (native runner)
+      - name: Install CGO dependencies (Linux arm64)
         if: runner.os == 'Linux' && matrix.arch == 'arm64'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
-            libgl1-mesa-dev:arm64 libglfw3-dev:arm64 libx11-dev:arm64 \
-            libxrandr-dev:arm64 libxinerama-dev:arm64 libxcursor-dev:arm64 libxi-dev:arm64 \
-            pkg-config-aarch64-linux-gnu
+          sudo apt-get install -y \
+            gcc \
+            libgl1-mesa-dev \
+            libglfw3-dev \
+            libx11-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxxf86vm-dev \
+            pkg-config
 
-      - name: Install CGO dependencies (Windows)
+      # Windows - verify MinGW is available
+      - name: Verify MinGW (Windows)
         if: runner.os == 'Windows'
         run: |
-          # MinGW-w64 is pre-installed on windows-latest
-          # Verify it's available
-          x86_64-w64-mingw32-gcc --version
+          echo "Checking MinGW for ${{ matrix.arch }}..."
+          ${{ matrix.cc }} --version
 
       - name: Download Go modules
         run: go mod download
@@ -97,21 +150,23 @@ jobs:
         run: |
           go build -v -trimpath -ldflags="-s -w" -o "${{ matrix.binary_name }}" .
 
-      - name: Package artifact
+      - name: Package artifact (Windows - PowerShell)
+        if: matrix.packager == 'powershell'
+        shell: powershell
         run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            7z a "${{ matrix.artifact_name }}.zip" "${{ matrix.binary_name }}"
-          else
-            tar -czf "${{ matrix.artifact_name }}.tar.gz" "${{ matrix.binary_name }}"
-          fi
+          Compress-Archive -Path "${{ matrix.binary_name }}" -DestinationPath "${{ matrix.artifact_name }}.zip" -Force
+
+      - name: Package artifact (Unix - tar)
+        if: matrix.packager == 'tar'
+        run: |
+          tar -czf "${{ matrix.artifact_name }}.tar.gz" "${{ matrix.binary_name }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
           path: |
-            ${{ matrix.artifact_name }}.zip
-            ${{ matrix.artifact_name }}.tar.gz
+            ${{ matrix.artifact_name }}.${{ matrix.ext }}
           retention-days: 7
 
   release:
@@ -129,7 +184,7 @@ jobs:
 
       - name: List artifacts
         run: |
-          find artifacts -type f -name "*.zip" -o -name "*.tar.gz" | sort
+          find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) | sort
 
       - name: Prepare release assets
         run: |
