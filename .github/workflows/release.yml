@@ -57,8 +57,8 @@ jobs:
           sudo apt-get install -y gcc-mingw-w64-i686
       - run: i686-w64-mingw32-gcc --version
       - run: go mod download
-      - name: Build (no console window)
-        run: go build -v -trimpath -ldflags="-H windowsgui -s -w" -o vpngate-desktop.exe .
+      - name: Build
+        run: go build -v -trimpath -ldflags="-s -w" -o vpngate-desktop.exe .
       - name: Package
         run: zip vpngate-desktop-windows-386.zip vpngate-desktop.exe
       - uses: actions/upload-artifact@v4
