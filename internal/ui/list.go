@@ -91,13 +91,24 @@ func (m *mainUI) Content() fyne.CanvasObject {
 	m.favCheck = widget.NewCheck("Favorites", m.onFav)
 	m.selCheck = widget.NewCheck("Select", m.onSelectMode)
 
-	m.list = widget.NewList(
-		func() int { return len(m.filteredServers) },
-		func() fyne.CanvasObject {
-			// Create a template row with a placeholder server
-			return newServerRow(m.ctrl, m.win, data.VpnServer{}, func() {})
-		},
-		func(li widget.ListItemID, o fyne.CanvasObject) {
+m.list = widget.NewList(
+	func() int { return len(m.filteredServers) },
+	func() fyne.CanvasObject {
+		// Create a template row with representative data
+		// so its measured height matches real rows.
+		// Use a realistic server to ensure MinSize() is
+		// conservative enough for all visible rows.
+		return newServerRow(m.ctrl, m.win, data.VpnServer{
+			CountryLong: "United States",
+			CountryShort: "US",
+			HostName:    "us1.vpngate.net",
+			IP:          "192.168.1.1",
+			Score:       1234567,
+			Ping:        123,
+			ProtoType:   "TCP/UDP",
+		}, func() {})
+	},
+	func(li widget.ListItemID, o fyne.CanvasObject) {
 			i := int(li)
 			if i < 0 || i >= len(m.filteredServers) {
 				return

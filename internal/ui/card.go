@@ -330,7 +330,10 @@ func (rr *rowRenderer) MinSize() fyne.Size {
 			h = m.Height
 		}
 	}
-	return fyne.NewSize(w+48, h+20)
+	// Add safety margin to prevent overlap between rows caused by minor
+	// theme/font-metric differences between the placeholder measurement
+	// and real row content.
+	return fyne.NewSize(w+48, h+20+8)
 }
 
 func (rr *rowRenderer) Refresh() {
