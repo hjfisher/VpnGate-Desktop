@@ -10,12 +10,13 @@ import (
 type AppSettings struct {
 	Language           string   `json:"language"`
 	Theme              string   `json:"theme"` // "system" | "light" | "dark"
-	SortBy             string   `json:"sort_by"` // score | ping | speed | sessions
+	SortBy             string   `json:"sort_by"` // score | ping | speed | sessions | date
 	SortAscending      bool     `json:"sort_ascending"`
 	AutoRefreshMinutes int      `json:"auto_refresh_minutes"` // 0 = off
 	UseMirror          bool     `json:"use_mirror"`
 	ExportFolder       string   `json:"export_folder"` // empty => default Downloads/VPNGate
 	Favorites          []string `json:"favorites"`
+	CountryFilter      string   `json:"country_filter"` // "" = all, or country name
 }
 
 func DefaultSettings() AppSettings {
@@ -26,6 +27,7 @@ func DefaultSettings() AppSettings {
 		SortAscending: false,
 		AutoRefreshMinutes: 0,
 		UseMirror:false,
+		CountryFilter: "",
 	}
 }
 

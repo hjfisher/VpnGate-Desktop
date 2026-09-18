@@ -149,7 +149,7 @@ func (d *detailWindow) checkPing() {
 	go func() {
 		select {
 		case <-done:
-		case <-time.After(6 * time.Second):
+		case <-time.After(15 * time.Second):
 			fyne.Do(func() {
 				d.pingBtn.Enable()
 				d.pingBtn.SetText("Check connection")

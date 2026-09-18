@@ -3,6 +3,7 @@ package data
 import (
 	"bufio"
 	"strings"
+	"time"
 )
 
 // VpnGateParser parses the CSV returned by the VPN Gate public API.
@@ -47,6 +48,7 @@ func (VpnGateParser) ParseStream(body string, fn func(VpnServer) bool) error {
 			continue
 		}
 		base64cfg := parts[14]
+		fetchTime := time.Now()
 		s := VpnServer{
 			HostName:         parts[0],
 			IP:               parts[1],
@@ -64,6 +66,7 @@ func (VpnGateParser) ParseStream(body string, fn func(VpnServer) bool) error {
 			Message:          parts[13],
 			OpenVPNConfigB64: base64cfg,
 			ProtoType:        detectProto(base64cfg),
+			AddedAt:          fetchTime,
 		}
 		if _, ok := seen[s.IP]; ok {
 			continue

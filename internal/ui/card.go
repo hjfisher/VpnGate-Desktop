@@ -76,7 +76,7 @@ func softPrimary() color.NRGBA {
 func makeBadge(code string) fyne.CanvasObject {
 	label := canvas.NewText(code, theme.PrimaryColorNamed("primary"))
 	label.TextStyle = fyne.TextStyle{Bold: true}
-	circle := canvas.NewCircle(color.NRGBA{R: 255, G: 0, B: 0, A: 255})  // Red circle
+	circle := canvas.NewCircle(color.NRGBA{A: 0})  // Transparent fill, only outline
 	circle.StrokeColor = theme.ShadowColor()
 	circle.StrokeWidth = 1
 	stack := container.NewStack(circle, label)
@@ -84,9 +84,9 @@ func makeBadge(code string) fyne.CanvasObject {
 }
 
 func makeCenter(sv data.VpnServer, selection bool) fyne.CanvasObject {
-	country := widget.NewLabelWithStyle(sv.CountryLong, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	host := widget.NewLabelWithStyle(sv.HostName, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	ip := widget.NewLabelWithStyle(sv.IP, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	country := widget.NewLabelWithStyle(sv.CountryLong, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	host := widget.NewLabelWithStyle(sv.HostName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	ip := widget.NewLabelWithStyle(sv.IP, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	ip.Importance = widget.MediumImportance
 	if selection {
 		ip.Hide()

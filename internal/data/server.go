@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // VpnServer mirrors one row of the VPN Gate public server list.
@@ -26,6 +27,7 @@ type VpnServer struct {
 	OpenVPNConfigB64   string
 	ProtoType          string
 	ConfigDecodedCache string
+	AddedAt            time.Time `json:"added_at"` // When this server was first fetched
 }
 
 // OpenVPNConfig decodes the embedded base64 config on demand.

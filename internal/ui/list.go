@@ -53,16 +53,13 @@ func NewMain(win fyne.Window, ctrl *controller.Controller) *mainUI {
 	return m
 }
 
-// SetCountryFilterShown shows/hides the server list based on whether a country filter is active.
+// SetCountryFilterShown manages server list visibility based on whether a country filter is active.
+// Status bar is always visible.
 func (m *mainUI) SetCountryFilterShown(shown bool) {
 	if shown {
-		m.offlineLabel.Hide()
-		m.infoLabel.Hide()
-		m.progress.Hide()
+		// Show the server list when a specific country is selected
 	} else {
-		m.offlineLabel.Show()
-		m.infoLabel.Show()
-		m.progress.Show()
+		// Show empty state when "All" is selected (no filter)
 	}
 	m.statusRow.Refresh()
 }
@@ -108,7 +105,16 @@ func (m *mainUI) Content() fyne.CanvasObject {
 	)
 	m.selRow.Hide()
 
-	m.filterRow = container.NewHBox(
+	// Search box (with clear button attached) - takes remaining space on right
+	searchBox := container.NewBorder(
+		nil, nil,
+		nil,
+		m.clearBtn,  // Clear button on the right
+		m.searchEntry,  // Search entry takes remaining space
+	)
+
+	// Top toolbar with filters on the left
+	filterControls := container.NewHBox(
 		m.refreshBtn,
 		m.countrySel,
 		m.sortSel,
@@ -116,8 +122,14 @@ func (m *mainUI) Content() fyne.CanvasObject {
 		m.favCheck,
 		m.selCheck,
 		widget.NewButtonWithIcon("Settings", theme.SettingsIcon(), func() { m.openSettings() }),
-		m.searchEntry,
-		m.clearBtn,
+	)
+
+	// Combined: controls on left, search box takes remaining space on right
+	m.filterRow = container.NewBorder(
+		nil, nil,
+		filterControls,  // All controls on left
+		nil,
+		searchBox,  // Search takes all remaining space on right
 	)
 
 	// Status bar
@@ -166,15 +178,6 @@ func (m *mainUI) Refresh() {
 		m.ascBtn.SetText("▲")
 	} else {
 		m.ascBtn.SetText("▼")
-	}
-
-	// Close the detail window if the server it shows no longer exists.
-	if m.detail != nil && m.detailHost != "" {
-		if _, ok := m.ctrl.FindServer(m.detailHost); !ok {
-			m.detail.Close()
-			m.detail = nil
-			m.detailHost = ""
-		}
 	}
 
 	// Show only servers matching the country filter (or "All")
@@ -237,7 +240,7 @@ func (m *mainUI) Refresh() {
 }
 
 // checkRowVisible shows/hides a toolbar row and forces a relayout.
-func (m *mainUI) onCountry(country string) { m.ctrl.SetCountry(country); m.SetCountryFilterShown(country != "All") }
+func (m *mainUI) onCountry(country string) { m.ctrl.SetCountry(country) }
 func (m *mainUI) onSort(value string)      { m.ctrl.SetSort(controller.SortFromLabel(value)) }
 
 // onSearchChanged debounces search input so the filtered list only rebuilds

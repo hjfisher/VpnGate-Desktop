@@ -20,6 +20,7 @@ const (
 	SortPing
 	SortSpeed
 	SortSessions
+	SortDate
 )
 
 // Controller holds all application state and drives background work
@@ -249,7 +250,11 @@ func (c *Controller) SetSearch(q string) {
 }
 
 func (c *Controller) SetCountry(country string) {
-	c.countryFilter = country
+	if country == "All" {
+		c.countryFilter = ""  // Empty string = no filter
+	} else {
+		c.countryFilter = country
+	}
 	c.update()
 }
 
@@ -481,6 +486,7 @@ func (c *Controller) UpdateSettings(s data.AppSettings) {
 	c.favorites = stringSet(s.Favorites)
 	c.sort = sortFromString(s.SortBy)
 	c.ascending = s.SortAscending
+	c.countryFilter = s.CountryFilter
 	c.sMu.Unlock()
 	c.saveSettings()
 	c.restartAutoRefresh(s.AutoRefreshMinutes)
@@ -583,6 +589,8 @@ func sortServerList(list []data.VpnServer, by SortBy, ascending bool) {
 			return a.Speed < b.Speed
 		case SortSessions:
 			return a.NumVpnSessions < b.NumVpnSessions
+		case SortDate:
+			return a.AddedAt.Before(b.AddedAt)
 		default:
 			return a.Score < b.Score
 		}
@@ -650,6 +658,8 @@ func sortFromString(s string) SortBy {
 		return SortSpeed
 	case "sessions":
 		return SortSessions
+	case "date":
+		return SortDate
 	default:
 		return SortScore
 	}
@@ -657,7 +667,7 @@ func sortFromString(s string) SortBy {
 
 // SortLabels returns the display labels for the sort dropdown, in UI order.
 func SortLabels() []string {
-	return []string{"Score", "Ping", "Speed", "Sessions"}
+	return []string{"Score", "Ping", "Speed", "Sessions", "Date Added"}
 }
 
 // SortLabel maps a sort mode to its display label.
@@ -669,6 +679,8 @@ func SortLabel(by SortBy) string {
 		return "Speed"
 	case SortSessions:
 		return "Sessions"
+	case SortDate:
+		return "Date Added"
 	default:
 		return "Score"
 	}
@@ -683,6 +695,8 @@ func SortFromLabel(label string) SortBy {
 		return SortSpeed
 	case "Sessions":
 		return SortSessions
+	case "Date Added":
+		return SortDate
 	default:
 		return SortScore
 	}
@@ -696,6 +710,8 @@ func sortString(by SortBy) string {
 		return "speed"
 	case SortSessions:
 		return "sessions"
+	case SortDate:
+		return "date"
 	default:
 		return "score"
 	}
