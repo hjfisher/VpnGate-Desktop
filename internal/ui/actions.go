@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 
 	"fyne.io/fyne/v2"
@@ -15,6 +16,16 @@ import (
 func connectAction(ctrl *controller.Controller, parent fyne.Window, sv data.VpnServer) {
 	path, err := ctrl.Connect(sv.HostName)
 	if err != nil {
+		// Check if it's a LaunchError (no handler on Linux)
+		var launchErr *net.LaunchError
+		if errors.As(err, &launchErr) {
+			msg := fmt.Sprintf("Config saved to:\n%s\n\n%s", path, launchErr.Error())
+			if launchErr.IsNoHandler {
+				msg += "\n\nInstall OpenVPN Connect or NetworkManager's OpenVPN plugin, or use Export/Copy config instead."
+			}
+			dialog.ShowInformation("Connect", msg, parent)
+			return
+		}
 		dialog.ShowError(err, parent)
 		return
 	}

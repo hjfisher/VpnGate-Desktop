@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"vpngate/internal/controller"
+	"vpngate/internal/data"
 )
 
 // mainUI wires the main window: filter toolbar, selection toolbar,
@@ -19,12 +20,13 @@ type mainUI struct {
 	win  fyne.Window
 	ctrl *controller.Controller
 
-	filterRow     *fyne.Container
-	selRow        *fyne.Container
-	statusRow     *fyne.Container
-	listBox       *fyne.Container
-	scroll        *container.Scroll
-	emptyContent  *fyne.Container
+	filterRow      *fyne.Container
+	selRow         *fyne.Container
+	statusRow      *fyne.Container
+	list           *widget.List
+	scroll         *container.Scroll
+	emptyContent   *fyne.Container
+	filteredServers []data.VpnServer
 
 	refreshBtn  *widget.Button
 	searchEntry *widget.Entry
@@ -89,8 +91,24 @@ func (m *mainUI) Content() fyne.CanvasObject {
 	m.favCheck = widget.NewCheck("Favorites", m.onFav)
 	m.selCheck = widget.NewCheck("Select", m.onSelectMode)
 
-	m.listBox = container.NewVBox()
-	m.scroll = container.NewVScroll(m.listBox)
+	m.list = widget.NewList(
+		func() int { return len(m.filteredServers) },
+		func() fyne.CanvasObject {
+			// Create a template row with a placeholder server
+			return newServerRow(m.ctrl, m.win, data.VpnServer{}, func() {})
+		},
+		func(li widget.ListItemID, o fyne.CanvasObject) {
+			i := int(li)
+			if i < 0 || i >= len(m.filteredServers) {
+				return
+			}
+			row := o.(*serverRow)
+			row.server = m.filteredServers[i]
+			row.onOpen = func() { m.showDetail(m.filteredServers[i]) }
+			row.Refresh()
+		},
+	)
+	m.scroll = container.NewVScroll(m.list)
 	m.scroll.SetMinSize(fyne.NewSize(600, 300))
 
 	// Selection toolbar (hidden by default)
@@ -104,6 +122,8 @@ func (m *mainUI) Content() fyne.CanvasObject {
 		container.NewHBox(m.selCountLabel, layout.NewSpacer(), m.selectAllBtn, exportBtn, deleteBtn, cancelBtn),
 	)
 	m.selRow.Hide()
+
+	m.emptyContent = m.buildEmpty()
 
 	// Search box (with clear button attached) - takes remaining space on right
 	searchBox := container.NewBorder(
@@ -150,7 +170,7 @@ func (m *mainUI) Content() fyne.CanvasObject {
 		container.NewVBox(m.filterRow, m.selRow),
 		m.statusRow,
 		nil, nil,
-		m.scroll,
+		m.list,
 	)
 }
 
@@ -183,29 +203,24 @@ func (m *mainUI) Refresh() {
 	// Show only servers matching the country filter (or "All")
 	servers := m.ctrl.Servers()
 	filtered := servers
-	if m.ctrl.CountryFilter() != "All" {
+	if country := m.ctrl.CountryFilter(); country != "" {
 		filtered = nil
 		for _, sv := range servers {
-			if sv.CountryLong == m.ctrl.CountryFilter() {
+			if sv.CountryLong == country {
 				filtered = append(filtered, sv)
 			}
 		}
 	}
 
-	m.listBox.Objects = nil
-	if len(filtered) == 0 {
-		m.listBox.Objects = append(m.listBox.Objects, m.emptyContent)
+	m.filteredServers = filtered
+	m.list.Refresh()
+
+	// Show/hide empty state
+	if len(m.filteredServers) == 0 {
+		m.emptyContent.Show()
 	} else {
-		for _, sv := range filtered {
-			if sv.IsBlank() {
-				continue
-			}
-			sv := sv
-			row := newServerRow(m.ctrl, m.win, sv, func() { m.showDetail(sv) })
-			m.listBox.Objects = append(m.listBox.Objects, row)
-		}
+		m.emptyContent.Hide()
 	}
-	m.listBox.Refresh()
 
 	// Selection toolbar
 	selMode := m.ctrl.SelectionMode()
