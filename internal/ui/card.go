@@ -127,10 +127,12 @@ func softPrimary() color.NRGBA {
 func makeBadgeInternal(code string) (*fyne.Container, *canvas.Text) {
 	label := canvas.NewText(code, theme.PrimaryColorNamed("primary"))
 	label.TextStyle = fyne.TextStyle{Bold: true}
+	label.Alignment = fyne.TextAlignCenter
 	circle := canvas.NewCircle(color.NRGBA{A: 0}) // Transparent fill, only outline
 	circle.StrokeColor = theme.ShadowColor()
 	circle.StrokeWidth = 1
-	return container.New(layout.NewGridWrapLayout(fyne.NewSize(40, 40))), label
+	stack := container.NewStack(circle, container.NewCenter(label))
+	return stack, label
 }
 
 // makeBadge creates a circle badge with a country code label.
@@ -186,94 +188,6 @@ func makeRight(ctrl *controller.Controller, parent fyne.Window, sv data.VpnServe
 
 	top := container.NewHBox(score, layout.NewSpacer(), favBtn)
 	return container.NewVBox(top, ping, proto, connectBtn)
-}
-
-// updateContent refreshes all dynamic content from the current r.server.
-// Must be called both when the renderer is first created (so the very first
-// render is correct) and every time rowRenderer.Refresh() runs (so reused rows
-// get the correct data for the new server).
-func (r *serverRow) updateContent() {
-	sv := r.server
-	selection := r.ctrl.SelectionMode()
-
-	// Update country/host/ip labels
-	if r.countryLabel != nil {
-		r.countryLabel.SetText(sv.CountryLong)
-	}
-	if r.hostLabel != nil {
-		r.hostLabel.SetText(sv.HostName)
-	}
-	if r.ipLabel != nil {
-		r.ipLabel.SetText(sv.IP)
-		if selection {
-			r.ipLabel.Hide()
-		} else {
-			r.ipLabel.Show()
-		}
-	}
-
-	// Update score/ping/proto
-	if r.scoreText != nil {
-		r.scoreText.Text = "Score " + formatScore(r.server.Score)
-		r.scoreText.Color = scoreColor(r.server.Score)
-		r.scoreText.Refresh()
-	}
-	if r.pingText != nil {
-		ms := ctrlPing(r.ctrl, r.server)
-		if ms <= 0 {
-			r.pingText.Text = "Ping n/a"
-		} else {
-			r.pingText.Text = "Ping " + itoa64(ms) + " ms"
-		}
-		r.pingText.Color = pingColor(ctrlPing(r.ctrl, r.server))
-		r.pingText.Refresh()
-	}
-	if r.protoText != nil {
-		r.protoText.Text = sv.ProtoLabel()
-		r.protoText.Refresh()
-	}
-
-	// Update favorite button
-	if r.favBtn != nil {
-		fav := "☆"
-		if r.ctrl.IsFavorite(sv.HostName) {
-			fav = "★"
-		}
-		r.favBtn.SetText(fav)
-		r.favBtn.OnTapped = func() { r.ctrl.ToggleFavorite(sv.HostName) }
-		r.favBtn.Refresh()
-	}
-
-	// Update connect button
-	if r.connectBtn != nil {
-		r.connectBtn.OnTapped = func() { connectAction(r.ctrl, r.win, sv) }
-		r.connectBtn.Refresh()
-	}
-
-	// Update badge (country code circle)
-	if r.badgeStack != nil && r.badgeLabel != nil {
-		r.badgeLabel.Text = sv.CountryShort
-		r.badgeLabel.Refresh()
-	}
-
-	// Update selection checkbox
-	if r.selCheck != nil {
-		if r.ctrl.SelectionMode() {
-			r.selCheck.Checked = r.ctrl.IsSelected(r.server.HostName)
-			if r.selCheck.OnChanged != nil {
-				r.selCheck.OnChanged = func(on bool) {
-					if on {
-						r.ctrl.SelectOnly(r.server.HostName)
-					} else {
-						r.ctrl.Unselect(r.server.HostName)
-					}
-				}
-			}
-			r.selCheck.Refresh()
-		} else {
-			r.selCheck.Hide()
-		}
-	}
 }
 
 // ----- persistently update widget content from current r.server -----
