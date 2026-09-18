@@ -298,18 +298,20 @@ func (rr *rowRenderer) Layout(size fyne.Size) {
 	bg.Resize(size)
 	bg.Move(fyne.NewPos(0, 0))
 
-	idx := 1
+	// Fixed indices: checkbox is ALWAYS at o[1], badge at o[2],
+	// center at o[3], right at o[4]. Only the checkbox's visual
+	// positioning depends on selection mode — never skip its index.
+	check := o[1]
+	badge := o[2]
+	center := o[3]
+	right := o[4]
+
 	left := pad
 	if rr.row.ctrl.SelectionMode() {
-		check := o[idx]
-		idx++
 		check.Resize(fyne.NewSize(36, 36))
 		check.Move(fyne.NewPos(pad, (size.Height-36)/2))
 		left += 36 + pad
 	}
-	badge := o[idx]
-	center := o[idx+1]
-	right := o[idx+2]
 
 	// Use the Fyne-allocated height directly — never let content
 	// exceed size.Height, which would overlap neighboring rows.
@@ -337,6 +339,8 @@ func (rr *rowRenderer) MinSize() fyne.Size {
 			continue // background fills the row
 		}
 		m := o.MinSize()
+		// Always include checkbox in width sum since it's always at o[1].
+		// Height is the max across all objects.
 		w += m.Width
 		if m.Height > h {
 			h = m.Height
