@@ -172,10 +172,10 @@ func makeRight(ctrl *controller.Controller, parent fyne.Window, sv data.VpnServe
 	if ctrl.IsFavorite(sv.HostName) {
 		fav = "★"
 	}
-	favBtn := widget.NewButton(fav, func() { ctrl.ToggleFavorite(sv.HostName) })
+	favBtn := widget.NewButton(fav, func() { ctrl.ToggleFavorite(r.server.HostName) })
 	favBtn.Importance = widget.MediumImportance
 
-	connectBtn := widget.NewButton("Connect", func() { connectAction(ctrl, parent, sv) })
+	connectBtn := widget.NewButton("Connect", func() { connectAction(ctrl, parent, r.server) })
 	connectBtn.Importance = widget.HighImportance
 
 	r.favBtn = favBtn
@@ -241,13 +241,11 @@ func (r *serverRow) updateContentFromServer() {
 			fav = "★"
 		}
 		r.favBtn.SetText(fav)
-		r.favBtn.OnTapped = func() { r.ctrl.ToggleFavorite(sv.HostName) }
 		r.favBtn.Refresh()
 	}
 
-	// Connect button
+	// Connect button — OnTapped now reads r.server dynamically in makeRight
 	if r.connectBtn != nil {
-		r.connectBtn.OnTapped = func() { connectAction(r.ctrl, r.win, sv) }
 		r.connectBtn.Refresh()
 	}
 
