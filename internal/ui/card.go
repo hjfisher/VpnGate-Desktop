@@ -58,31 +58,29 @@ func (r *serverRow) CreateRenderer() fyne.WidgetRenderer {
 
 	objects := []fyne.CanvasObject{bg}
 
-	// Selection checkbox
-	if selection {
-		check := widget.NewCheck("", func(on bool) {
-			if on {
-				r.ctrl.SelectOnly(r.server.HostName)
-			} else {
-				r.ctrl.Unselect(r.server.HostName)
-			}
-		})
-		check.Checked = selected
-		check.Refresh()
-		objects = append(objects, check)
-		r.selCheck = check
-	}
+	// Selection checkbox - always created, visibility controlled by updateContentFromServer()
+	check := widget.NewCheck("", func(on bool) {
+		if on {
+			r.ctrl.SelectOnly(r.server.HostName)
+		} else {
+			r.ctrl.Unselect(r.server.HostName)
+		}
+	})
+	check.Checked = selected
+	check.Refresh()
+	objects = append(objects, check)
+	r.selCheck = check
 
 	// Build badge, center, right with persistent widget references
 	badgeStack, badgeLabel := makeBadgeInternal(r.server.CountryShort)
 	r.badgeStack = badgeStack
 	r.badgeLabel = badgeLabel
 
-	center := makeCenter(r.server, selection, r)
+	center := makeCenter(r.server, r)
 	right := makeRight(r.ctrl, r.win, r.server, r)
 
 	objects = append(objects, r.badgeStack, center, right)
-	return &rowRenderer{row: r, objects: objects, hasCheck: r.ctrl.SelectionMode()}
+	return &rowRenderer{row: r, objects: objects}
 }
 
 // scoreColor returns a color for the score text based on the score value.
@@ -143,14 +141,11 @@ func makeBadge(code string) *fyne.Container {
 }
 
 // makeCenter creates the center section of a server row (country, host, IP labels).
-func makeCenter(sv data.VpnServer, selection bool, r *serverRow) fyne.CanvasObject {
+func makeCenter(sv data.VpnServer, r *serverRow) fyne.CanvasObject {
 	country := widget.NewLabelWithStyle(sv.CountryLong, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	host := widget.NewLabelWithStyle(sv.HostName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	ip := widget.NewLabelWithStyle(sv.IP, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	ip.Importance = widget.MediumImportance
-	if selection {
-		ip.Hide()
-	}
 
 	// Store references for later updates
 	r.countryLabel = country
@@ -266,15 +261,14 @@ func (r *serverRow) updateContentFromServer() {
 	if r.selCheck != nil {
 		if selection {
 			r.selCheck.Checked = r.ctrl.IsSelected(r.server.HostName)
-			if r.selCheck.OnChanged != nil {
-				r.selCheck.OnChanged = func(on bool) {
-					if on {
-						r.ctrl.SelectOnly(r.server.HostName)
-					} else {
-						r.ctrl.Unselect(r.server.HostName)
-					}
+			r.selCheck.OnChanged = func(on bool) {
+				if on {
+					r.ctrl.SelectOnly(r.server.HostName)
+				} else {
+					r.ctrl.Unselect(r.server.HostName)
 				}
 			}
+			r.selCheck.Show()
 			r.selCheck.Refresh()
 		} else {
 			r.selCheck.Hide()
@@ -284,9 +278,8 @@ func (r *serverRow) updateContentFromServer() {
 
 // rowRenderer lays the card out with a flexible middle column.
 type rowRenderer struct {
-	row      *serverRow
-	objects  []fyne.CanvasObject
-	hasCheck bool
+	row     *serverRow
+	objects []fyne.CanvasObject
 }
 
 func (rr *rowRenderer) Layout(size fyne.Size) {
@@ -298,7 +291,7 @@ func (rr *rowRenderer) Layout(size fyne.Size) {
 
 	idx := 1
 	left := pad
-	if rr.hasCheck {
+	if rr.row.ctrl.SelectionMode() {
 		check := o[idx]
 		idx++
 		check.Resize(fyne.NewSize(36, 36))
