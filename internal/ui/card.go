@@ -44,6 +44,15 @@ func newServerRow(ctrl *controller.Controller, parent fyne.Window, sv data.VpnSe
 
 func (r *serverRow) Tapped(*fyne.PointEvent) { r.onOpen() }
 
+// MinSize returns a fixed conservative size that Fyne's widget.List
+// uses as the uniform row height. This must be large enough to fit
+// any row's content (3 stacked labels + score/ping/proto text + 2 buttons)
+// regardless of what data is actually displayed, preventing rows from
+// overflowing into neighbors.
+func (r *serverRow) MinSize() fyne.Size {
+	return fyne.NewSize(600, 56)
+}
+
 var _ fyne.Tappable = (*serverRow)(nil)
 
 // CreateRenderer implements fyne.Widget.
@@ -302,13 +311,12 @@ func (rr *rowRenderer) Layout(size fyne.Size) {
 	center := o[idx+1]
 	right := o[idx+2]
 
-	// Clamp to allocated size to prevent content overflowing into neighboring rows
+	// Use the Fyne-allocated height directly — never let content
+	// exceed size.Height, which would overlap neighboring rows.
 	rightSize := right.MinSize()
-	if rightSize.Height > size.Height {
-		rightSize.Height = size.Height
-	}
+	rightSize.Height = size.Height
 	right.Resize(rightSize)
-	right.Move(fyne.NewPos(size.Width-rightSize.Width-pad, (size.Height-rightSize.Height)/2))
+	right.Move(fyne.NewPos(size.Width-rightSize.Width-pad, 0))
 
 	badgeSize := fyne.NewSize(40, 40)
 	badge.Resize(badgeSize)
