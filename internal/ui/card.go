@@ -76,8 +76,8 @@ func (r *serverRow) CreateRenderer() fyne.WidgetRenderer {
 	r.badgeStack = badgeStack
 	r.badgeLabel = badgeLabel
 
-	center := makeCenter(r.server, r)
-	right := makeRight(r.ctrl, r.win, r.server, r)
+	center := makeCenter(r)
+	right := makeRight(r.ctrl, r.win, r)
 
 	objects = append(objects, r.badgeStack, center, right)
 	return &rowRenderer{row: r, objects: objects}
@@ -141,7 +141,8 @@ func makeBadge(code string) *fyne.Container {
 }
 
 // makeCenter creates the center section of a server row (country, host, IP labels).
-func makeCenter(sv data.VpnServer, r *serverRow) fyne.CanvasObject {
+func makeCenter(r *serverRow) fyne.CanvasObject {
+	sv := r.server
 	country := widget.NewLabelWithStyle(sv.CountryLong, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	host := widget.NewLabelWithStyle(sv.HostName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	ip := widget.NewLabelWithStyle(sv.IP, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
@@ -156,8 +157,9 @@ func makeCenter(sv data.VpnServer, r *serverRow) fyne.CanvasObject {
 }
 
 // makeRight creates the right section of a server row (score, ping, protocol,
-// favorite, connect buttons).
-func makeRight(ctrl *controller.Controller, parent fyne.Window, sv data.VpnServer, r *serverRow) fyne.CanvasObject {
+// favorite, connect buttons). All content reads from r.server dynamically.
+func makeRight(ctrl *controller.Controller, parent fyne.Window, r *serverRow) fyne.CanvasObject {
+	sv := r.server
 	score := canvas.NewText("Score "+formatScore(sv.Score), scoreColor(sv.Score))
 	score.TextStyle.Bold = true
 	ping := canvas.NewText("Ping "+pingText(ctrl, sv), pingColor(ctrlPing(ctrl, sv)))
@@ -169,7 +171,7 @@ func makeRight(ctrl *controller.Controller, parent fyne.Window, sv data.VpnServe
 	r.protoText = proto
 
 	fav := "☆"
-	if ctrl.IsFavorite(sv.HostName) {
+	if ctrl.IsFavorite(r.server.HostName) {
 		fav = "★"
 	}
 	favBtn := widget.NewButton(fav, func() { ctrl.ToggleFavorite(r.server.HostName) })
@@ -300,7 +302,11 @@ func (rr *rowRenderer) Layout(size fyne.Size) {
 	center := o[idx+1]
 	right := o[idx+2]
 
+	// Clamp to allocated size to prevent content overflowing into neighboring rows
 	rightSize := right.MinSize()
+	if rightSize.Height > size.Height {
+		rightSize.Height = size.Height
+	}
 	right.Resize(rightSize)
 	right.Move(fyne.NewPos(size.Width-rightSize.Width-pad, (size.Height-rightSize.Height)/2))
 
