@@ -223,8 +223,9 @@ func (m *mainUI) Refresh() {
 		}
 	}
 
-	m.filteredServers = filtered
+m.filteredServers = filtered
 	m.list.Refresh()
+	m.scroll.Refresh()
 
 	// Show/hide empty state
 	if len(m.filteredServers) == 0 {
