@@ -50,7 +50,7 @@ func (r *serverRow) Tapped(*fyne.PointEvent) { r.onOpen() }
 // regardless of what data is actually displayed, preventing rows from
 // overflowing into neighbors.
 func (r *serverRow) MinSize() fyne.Size {
-	return fyne.NewSize(600, 90)
+	return fyne.NewSize(600, 120)
 }
 
 var _ fyne.Tappable = (*serverRow)(nil)
