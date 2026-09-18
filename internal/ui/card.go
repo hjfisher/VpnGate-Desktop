@@ -22,19 +22,31 @@ type serverRow struct {
 	server data.VpnServer
 	win    fyne.Window
 	onOpen func()
+
+	// Persistent widget references for content updates (created once in CreateRenderer)
+	countryLabel *widget.Label
+	hostLabel    *widget.Label
+	ipLabel      *widget.Label
+	scoreText    *canvas.Text
+	pingText     *canvas.Text
+	protoText    *canvas.Text
+	favBtn       *widget.Button
+	connectBtn   *widget.Button
+	badgeStack   *fyne.Container // stack containing circle + label
+	badgeLabel   *canvas.Text
+	selCheck     *widget.Check
 }
 
 func newServerRow(ctrl *controller.Controller, parent fyne.Window, sv data.VpnServer, onOpen func()) *serverRow {
 	r := &serverRow{ctrl: ctrl, server: sv, win: parent, onOpen: onOpen}
-	r.ExtendBaseWidget(r)
 	return r
 }
 
-var _ fyne.Tappable = (*serverRow)(nil)
-var _ fyne.Widget = (*serverRow)(nil)
-
 func (r *serverRow) Tapped(*fyne.PointEvent) { r.onOpen() }
 
+var _ fyne.Tappable = (*serverRow)(nil)
+
+// CreateRenderer implements fyne.Widget.
 func (r *serverRow) CreateRenderer() fyne.WidgetRenderer {
 	selection := r.ctrl.SelectionMode()
 	selected := selection && r.ctrl.IsSelected(r.server.HostName)
@@ -45,6 +57,8 @@ func (r *serverRow) CreateRenderer() fyne.WidgetRenderer {
 	}
 
 	objects := []fyne.CanvasObject{bg}
+
+	// Selection checkbox
 	if selection {
 		check := widget.NewCheck("", func(on bool) {
 			if on {
@@ -56,65 +70,22 @@ func (r *serverRow) CreateRenderer() fyne.WidgetRenderer {
 		check.Checked = selected
 		check.Refresh()
 		objects = append(objects, check)
+		r.selCheck = check
 	}
 
-	border := container.NewBorder(nil, nil, nil, nil, makeCenter(r.server, selection))
-	objects = append(objects,
-		makeBadge(r.server.CountryShort),
-		border,
-		makeRight(r.ctrl, r.win, r.server),
-	)
-	return &rowRenderer{row: r, objects: objects, hasCheck: selection}
+	// Build badge, center, right with persistent widget references
+	badgeStack, badgeLabel := makeBadgeInternal(r.server.CountryShort)
+	r.badgeStack = badgeStack
+	r.badgeLabel = badgeLabel
+
+	center := makeCenter(r.server, selection, r)
+	right := makeRight(r.ctrl, r.win, r.server, r)
+
+	objects = append(objects, r.badgeStack, center, right)
+	return &rowRenderer{row: r, objects: objects, hasCheck: r.ctrl.SelectionMode()}
 }
 
-func softPrimary() color.NRGBA {
-	c := theme.PrimaryColor()
-	rgba := color.NRGBAModel.Convert(c).(color.NRGBA)
-	return color.NRGBA{R: rgba.R, G: rgba.G, B: rgba.B, A: 28}
-}
-
-func makeBadge(code string) fyne.CanvasObject {
-	label := canvas.NewText(code, theme.PrimaryColorNamed("primary"))
-	label.TextStyle = fyne.TextStyle{Bold: true}
-	circle := canvas.NewCircle(color.NRGBA{A: 0})  // Transparent fill, only outline
-	circle.StrokeColor = theme.ShadowColor()
-	circle.StrokeWidth = 1
-	stack := container.NewStack(circle, label)
-	return container.New(layout.NewGridWrapLayout(fyne.NewSize(40, 40)), stack)
-}
-
-func makeCenter(sv data.VpnServer, selection bool) fyne.CanvasObject {
-	country := widget.NewLabelWithStyle(sv.CountryLong, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	host := widget.NewLabelWithStyle(sv.HostName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	ip := widget.NewLabelWithStyle(sv.IP, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	ip.Importance = widget.MediumImportance
-	if selection {
-		ip.Hide()
-	}
-	return container.NewVBox(country, host, ip)
-}
-
-func makeRight(ctrl *controller.Controller, parent fyne.Window, sv data.VpnServer) fyne.CanvasObject {
-	score := canvas.NewText("Score "+formatScore(sv.Score), scoreColor(sv.Score))
-	score.TextStyle.Bold = true
-	ping := canvas.NewText("Ping "+pingText(ctrl, sv), pingColor(ctrlPing(ctrl, sv)))
-	proto := canvas.NewText(sv.ProtoLabel(), theme.PrimaryColorNamed("primary"))
-	proto.TextStyle.Bold = true
-
-	fav := "☆"
-	if ctrl.IsFavorite(sv.HostName) {
-		fav = "★"
-	}
-	favBtn := widget.NewButton(fav, func() { ctrl.ToggleFavorite(sv.HostName) })
-	favBtn.Importance = widget.MediumImportance
-
-	connectBtn := widget.NewButton("Connect", func() { connectAction(ctrl, parent, sv) })
-	connectBtn.Importance = widget.HighImportance
-
-	top := container.NewHBox(score, layout.NewSpacer(), favBtn)
-	return container.NewVBox(top, ping, proto, connectBtn)
-}
-
+// scoreColor returns a color for the score text based on the score value.
 func scoreColor(score int64) color.NRGBA {
 	switch {
 	case score >= 1_000_000:
@@ -126,6 +97,8 @@ func scoreColor(score int64) color.NRGBA {
 	}
 }
 
+// ctrlPing returns the ping milliseconds for a server, checking the controller's
+// ping results first, then falling back to the server's stored ping.
 func ctrlPing(ctrl *controller.Controller, sv data.VpnServer) int64 {
 	if ms, ok := ctrl.PingResult(sv.HostName); ok {
 		return ms
@@ -133,12 +106,266 @@ func ctrlPing(ctrl *controller.Controller, sv data.VpnServer) int64 {
 	return int64(sv.Ping)
 }
 
+// pingText returns a formatted ping string like "123 ms" or "n/a".
 func pingText(ctrl *controller.Controller, sv data.VpnServer) string {
 	ms := ctrlPing(ctrl, sv)
 	if ms <= 0 {
 		return "n/a"
 	}
 	return itoa64(ms) + " ms"
+}
+
+// softPrimary returns a softened version of the primary theme color.
+func softPrimary() color.NRGBA {
+	c := theme.PrimaryColor()
+	rgba := color.NRGBAModel.Convert(c).(color.NRGBA)
+	return color.NRGBA{R: rgba.R, G: rgba.G, B: rgba.B, A: 28}
+}
+
+// makeBadgeInternal creates a circle badge with a country code label.
+// Returns both the container and the label for persistent reference updates.
+func makeBadgeInternal(code string) (*fyne.Container, *canvas.Text) {
+	label := canvas.NewText(code, theme.PrimaryColorNamed("primary"))
+	label.TextStyle = fyne.TextStyle{Bold: true}
+	circle := canvas.NewCircle(color.NRGBA{A: 0}) // Transparent fill, only outline
+	circle.StrokeColor = theme.ShadowColor()
+	circle.StrokeWidth = 1
+	return container.New(layout.NewGridWrapLayout(fyne.NewSize(40, 40))), label
+}
+
+// makeBadge creates a circle badge with a country code label.
+// Returns just the container for backward compatibility (e.g. detail.go).
+func makeBadge(code string) *fyne.Container {
+	container, _ := makeBadgeInternal(code)
+	return container
+}
+
+// makeCenter creates the center section of a server row (country, host, IP labels).
+func makeCenter(sv data.VpnServer, selection bool, r *serverRow) fyne.CanvasObject {
+	country := widget.NewLabelWithStyle(sv.CountryLong, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	host := widget.NewLabelWithStyle(sv.HostName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	ip := widget.NewLabelWithStyle(sv.IP, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	ip.Importance = widget.MediumImportance
+	if selection {
+		ip.Hide()
+	}
+
+	// Store references for later updates
+	r.countryLabel = country
+	r.hostLabel = host
+	r.ipLabel = ip
+
+	return container.NewVBox(country, host, ip)
+}
+
+// makeRight creates the right section of a server row (score, ping, protocol,
+// favorite, connect buttons).
+func makeRight(ctrl *controller.Controller, parent fyne.Window, sv data.VpnServer, r *serverRow) fyne.CanvasObject {
+	score := canvas.NewText("Score "+formatScore(sv.Score), scoreColor(sv.Score))
+	score.TextStyle.Bold = true
+	ping := canvas.NewText("Ping "+pingText(ctrl, sv), pingColor(ctrlPing(ctrl, sv)))
+	proto := canvas.NewText(sv.ProtoLabel(), theme.PrimaryColorNamed("primary"))
+	proto.TextStyle.Bold = true
+
+	r.scoreText = score
+	r.pingText = ping
+	r.protoText = proto
+
+	fav := "☆"
+	if ctrl.IsFavorite(sv.HostName) {
+		fav = "★"
+	}
+	favBtn := widget.NewButton(fav, func() { ctrl.ToggleFavorite(sv.HostName) })
+	favBtn.Importance = widget.MediumImportance
+
+	connectBtn := widget.NewButton("Connect", func() { connectAction(ctrl, parent, sv) })
+	connectBtn.Importance = widget.HighImportance
+
+	r.favBtn = favBtn
+	r.connectBtn = connectBtn
+
+	top := container.NewHBox(score, layout.NewSpacer(), favBtn)
+	return container.NewVBox(top, ping, proto, connectBtn)
+}
+
+// updateContent refreshes all dynamic content from the current r.server.
+// Must be called both when the renderer is first created (so the very first
+// render is correct) and every time rowRenderer.Refresh() runs (so reused rows
+// get the correct data for the new server).
+func (r *serverRow) updateContent() {
+	sv := r.server
+	selection := r.ctrl.SelectionMode()
+
+	// Update country/host/ip labels
+	if r.countryLabel != nil {
+		r.countryLabel.SetText(sv.CountryLong)
+	}
+	if r.hostLabel != nil {
+		r.hostLabel.SetText(sv.HostName)
+	}
+	if r.ipLabel != nil {
+		r.ipLabel.SetText(sv.IP)
+		if selection {
+			r.ipLabel.Hide()
+		} else {
+			r.ipLabel.Show()
+		}
+	}
+
+	// Update score/ping/proto
+	if r.scoreText != nil {
+		r.scoreText.Text = "Score " + formatScore(r.server.Score)
+		r.scoreText.Color = scoreColor(r.server.Score)
+		r.scoreText.Refresh()
+	}
+	if r.pingText != nil {
+		ms := ctrlPing(r.ctrl, r.server)
+		if ms <= 0 {
+			r.pingText.Text = "Ping n/a"
+		} else {
+			r.pingText.Text = "Ping " + itoa64(ms) + " ms"
+		}
+		r.pingText.Color = pingColor(ctrlPing(r.ctrl, r.server))
+		r.pingText.Refresh()
+	}
+	if r.protoText != nil {
+		r.protoText.Text = sv.ProtoLabel()
+		r.protoText.Refresh()
+	}
+
+	// Update favorite button
+	if r.favBtn != nil {
+		fav := "☆"
+		if r.ctrl.IsFavorite(sv.HostName) {
+			fav = "★"
+		}
+		r.favBtn.SetText(fav)
+		r.favBtn.OnTapped = func() { r.ctrl.ToggleFavorite(sv.HostName) }
+		r.favBtn.Refresh()
+	}
+
+	// Update connect button
+	if r.connectBtn != nil {
+		r.connectBtn.OnTapped = func() { connectAction(r.ctrl, r.win, sv) }
+		r.connectBtn.Refresh()
+	}
+
+	// Update badge (country code circle)
+	if r.badgeStack != nil && r.badgeLabel != nil {
+		r.badgeLabel.Text = sv.CountryShort
+		r.badgeLabel.Refresh()
+	}
+
+	// Update selection checkbox
+	if r.selCheck != nil {
+		if r.ctrl.SelectionMode() {
+			r.selCheck.Checked = r.ctrl.IsSelected(r.server.HostName)
+			if r.selCheck.OnChanged != nil {
+				r.selCheck.OnChanged = func(on bool) {
+					if on {
+						r.ctrl.SelectOnly(r.server.HostName)
+					} else {
+						r.ctrl.Unselect(r.server.HostName)
+					}
+				}
+			}
+			r.selCheck.Refresh()
+		} else {
+			r.selCheck.Hide()
+		}
+	}
+}
+
+// ----- persistently update widget content from current r.server -----
+
+func (r *serverRow) updateContentFromServer() {
+	sv := r.server
+	selection := r.ctrl.SelectionMode()
+
+	// Country label
+	if r.countryLabel != nil {
+		r.countryLabel.SetText(sv.CountryLong)
+	}
+	// Host label
+	if r.hostLabel != nil {
+		r.hostLabel.SetText(sv.HostName)
+	}
+	// IP label
+	if r.ipLabel != nil {
+		r.ipLabel.SetText(sv.IP)
+		if selection {
+			r.ipLabel.Hide()
+		} else {
+			r.ipLabel.Show()
+		}
+	}
+
+	// Score
+	if r.scoreText != nil {
+		r.scoreText.Text = "Score " + formatScore(sv.Score)
+		r.scoreText.Color = scoreColor(sv.Score)
+		r.scoreText.Refresh()
+	}
+
+	// Ping
+	if r.pingText != nil {
+		ms := ctrlPing(r.ctrl, sv)
+		if ms <= 0 {
+			r.pingText.Text = "Ping n/a"
+		} else {
+			r.pingText.Text = "Ping " + itoa64(ms) + " ms"
+		}
+		r.pingText.Color = pingColor(ctrlPing(r.ctrl, sv))
+		r.pingText.Refresh()
+	}
+
+	// Protocol
+	if r.protoText != nil {
+		r.protoText.Text = sv.ProtoLabel()
+		r.protoText.Refresh()
+	}
+
+	// Favorite button
+	if r.favBtn != nil {
+		fav := "☆"
+		if r.ctrl.IsFavorite(sv.HostName) {
+			fav = "★"
+		}
+		r.favBtn.SetText(fav)
+		r.favBtn.OnTapped = func() { r.ctrl.ToggleFavorite(sv.HostName) }
+		r.favBtn.Refresh()
+	}
+
+	// Connect button
+	if r.connectBtn != nil {
+		r.connectBtn.OnTapped = func() { connectAction(r.ctrl, r.win, sv) }
+		r.connectBtn.Refresh()
+	}
+
+	// Badge (country code circle)
+	if r.badgeStack != nil && r.badgeLabel != nil {
+		r.badgeLabel.Text = sv.CountryShort
+		r.badgeLabel.Refresh()
+	}
+
+	// Selection checkbox
+	if r.selCheck != nil {
+		if selection {
+			r.selCheck.Checked = r.ctrl.IsSelected(r.server.HostName)
+			if r.selCheck.OnChanged != nil {
+				r.selCheck.OnChanged = func(on bool) {
+					if on {
+						r.ctrl.SelectOnly(r.server.HostName)
+					} else {
+						r.ctrl.Unselect(r.server.HostName)
+					}
+				}
+			}
+			r.selCheck.Refresh()
+		} else {
+			r.selCheck.Hide()
+		}
+	}
 }
 
 // rowRenderer lays the card out with a flexible middle column.
@@ -199,7 +426,11 @@ func (rr *rowRenderer) MinSize() fyne.Size {
 	return fyne.NewSize(w+48, h+20)
 }
 
-func (rr *rowRenderer) Refresh() { canvas.Refresh(rr.row) }
+func (rr *rowRenderer) Refresh() {
+	rr.row.updateContentFromServer()
+	canvas.Refresh(rr.row)
+}
+
 func (rr *rowRenderer) Objects() []fyne.CanvasObject {
 	return rr.objects
 }
