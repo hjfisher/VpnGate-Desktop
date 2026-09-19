@@ -41,9 +41,9 @@ type mainUI struct {
 	selCountLabel *widget.Label
 	selectAllBtn  *widget.Button
 
-	offlineLabel *widget.Label
+	offlineLabel   *widget.Label
 	infoLabel    *widget.Label
-	progress     *widget.ProgressBarInfinite
+	refreshLabel *widget.Label
 
 	detail     fyne.Window
 	detailHost string
@@ -166,11 +166,11 @@ m.list = widget.NewList(
 	// Status bar
 	m.offlineLabel = widget.NewLabel("")
 	m.infoLabel = widget.NewLabel("")
-	m.progress = widget.NewProgressBarInfinite()
-	m.progress.Hide()
+	m.refreshLabel = widget.NewLabel("Refreshing...")
+	m.refreshLabel.Hide()
 	m.statusRow = container.NewBorder(
 		nil, nil,
-		container.NewHBox(m.offlineLabel, m.progress),
+		container.NewHBox(m.offlineLabel, m.refreshLabel),
 		m.infoLabel,
 		container.NewCenter(widget.NewLabel("")),
 	)
@@ -246,11 +246,10 @@ func (m *mainUI) Refresh() {
 
 	// Status bar
 	if m.ctrl.IsRefreshing() {
-		m.progress.Show()
-		m.progress.Start()
+		m.refreshLabel.SetText("Refreshing...")
+		m.refreshLabel.Show()
 	} else {
-		m.progress.Stop()
-		m.progress.Hide()
+		m.refreshLabel.Hide()
 	}
 	if m.ctrl.IsOffline() {
 		m.offlineLabel.SetText("Offline — showing saved data")
