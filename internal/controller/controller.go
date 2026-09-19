@@ -186,7 +186,7 @@ func (c *Controller) mergeParsed(csv string) {
 			batches <- b
 			batch = batch[:0]
 		}
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 		parseDone := make(chan struct{})
 		go func() {
