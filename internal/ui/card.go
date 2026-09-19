@@ -50,7 +50,7 @@ func (r *serverRow) Tapped(*fyne.PointEvent) { r.onOpen() }
 // regardless of what data is actually displayed, preventing rows from
 // overflowing into neighbors.
 func (r *serverRow) MinSize() fyne.Size {
-	return fyne.NewSize(600, 120)
+	return fyne.NewSize(600, 90)
 }
 
 var _ fyne.Tappable = (*serverRow)(nil)
@@ -85,7 +85,7 @@ func (r *serverRow) CreateRenderer() fyne.WidgetRenderer {
 	r.badgeStack = badgeStack
 	r.badgeLabel = badgeLabel
 
-	center := makeCenter(r)
+	center := makeCenter(r.server, selection, r)
 	right := makeRight(r.ctrl, r.win, r)
 
 	objects = append(objects, r.badgeStack, center, right)
@@ -150,12 +150,14 @@ func makeBadge(code string) *fyne.Container {
 }
 
 // makeCenter creates the center section of a server row (country, host, IP labels).
-func makeCenter(r *serverRow) fyne.CanvasObject {
-	sv := r.server
+func makeCenter(sv data.VpnServer, selection bool, r *serverRow) fyne.CanvasObject {
 	country := widget.NewLabelWithStyle(sv.CountryLong, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	host := widget.NewLabelWithStyle(sv.HostName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	ip := widget.NewLabelWithStyle(sv.IP, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	ip.Importance = widget.MediumImportance
+	if selection {
+		ip.Hide()
+	}
 
 	// Store references for later updates
 	r.countryLabel = country
@@ -183,10 +185,10 @@ func makeRight(ctrl *controller.Controller, parent fyne.Window, r *serverRow) fy
 	if ctrl.IsFavorite(r.server.HostName) {
 		fav = "★"
 	}
-	favBtn := widget.NewButton(fav, func() { ctrl.ToggleFavorite(r.server.HostName) })
+	favBtn := widget.NewButton(fav, func() { ctrl.ToggleFavorite(sv.HostName) })
 	favBtn.Importance = widget.MediumImportance
 
-	connectBtn := widget.NewButton("Connect", func() { connectAction(ctrl, parent, r.server) })
+	connectBtn := widget.NewButton("Connect", func() { connectAction(ctrl, parent, sv) })
 	connectBtn.Importance = widget.HighImportance
 
 	r.favBtn = favBtn
@@ -298,20 +300,18 @@ func (rr *rowRenderer) Layout(size fyne.Size) {
 	bg.Resize(size)
 	bg.Move(fyne.NewPos(0, 0))
 
-	// Fixed indices: checkbox is ALWAYS at o[1], badge at o[2],
-	// center at o[3], right at o[4]. Only the checkbox's visual
-	// positioning depends on selection mode — never skip its index.
-	check := o[1]
-	badge := o[2]
-	center := o[3]
-	right := o[4]
-
+	idx := 1
 	left := pad
 	if rr.row.ctrl.SelectionMode() {
+		check := o[idx]
+		idx++
 		check.Resize(fyne.NewSize(36, 36))
 		check.Move(fyne.NewPos(pad, (size.Height-36)/2))
 		left += 36 + pad
 	}
+	badge := o[idx]
+	center := o[idx+1]
+	right := o[idx+2]
 
 	// Use the Fyne-allocated height directly — never let content
 	// exceed size.Height, which would overlap neighboring rows.
@@ -339,8 +339,6 @@ func (rr *rowRenderer) MinSize() fyne.Size {
 			continue // background fills the row
 		}
 		m := o.MinSize()
-		// Always include checkbox in width sum since it's always at o[1].
-		// Height is the max across all objects.
 		w += m.Width
 		if m.Height > h {
 			h = m.Height
