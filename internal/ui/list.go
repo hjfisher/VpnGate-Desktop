@@ -223,9 +223,8 @@ func (m *mainUI) Refresh() {
 		}
 	}
 
-m.filteredServers = filtered
+	m.filteredServers = filtered
 	m.list.Refresh()
-	m.scroll.Refresh()
 
 	// Show/hide empty state
 	if len(m.filteredServers) == 0 {
@@ -281,7 +280,7 @@ func (m *mainUI) onSearchChanged(_ string) {
 	if m.searchTimer != nil {
 		m.searchTimer.Stop()
 	}
-	m.searchTimer = time.AfterFunc(250*time.Millisecond, func() {
+	m.searchTimer = time.AfterFunc(500*time.Millisecond, func() {
 		fyne.Do(func() {
 			m.ctrl.SetSearch(m.searchEntry.Text)
 		})
