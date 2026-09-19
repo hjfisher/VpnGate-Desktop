@@ -38,6 +38,11 @@ func main() {
 		fyne.Do(ctrl.Refresh)
 	}()
 
+	// Ensure clean shutdown when window closes
+	w.SetOnClosed(func() {
+		ctrl.Shutdown()
+	})
+
 	w.ShowAndRun()
 }
 

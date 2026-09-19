@@ -94,6 +94,16 @@ func (c *Controller) update() {
 	}
 }
 
+// Shutdown stops all background goroutines and cleans up resources.
+// Call this when the application is closing to ensure clean shutdown.
+func (c *Controller) Shutdown() {
+	// Signal auto-refresh ticker to stop
+	select {
+	case c.stopTick <- struct{}{}:
+	default:
+	}
+}
+
 // --- App / data getters ---
 
 func (c *Controller) App() fyne.App                  { return c.app }
