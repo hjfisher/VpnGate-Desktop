@@ -19,7 +19,10 @@ A cross-platform (Windows / macOS / Linux) desktop client for browsing and expor
 
 ## Screenshots
 
-*(Add screenshots here)*
+<p align="center">
+  <img src="docs/preview.png" alt="Panel overview">
+</p>
+<br>
 
 ## Requirements
 
